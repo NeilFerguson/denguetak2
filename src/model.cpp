@@ -7723,7 +7723,7 @@ dust::pars_type<model> dust_pars<model>(cpp11::list user) {
   shared->dim_age_removal_d_2 = 41;
   shared->dim_births_d_1 = 151;
   shared->dim_births_d_2 = 2;
-  shared->dim_coverage_d_1 = 77;
+  shared->dim_coverage_d_1 = 76;
   shared->dim_coverage_d_2 = 3;
   shared->dim_dis_pri = 4;
   shared->dim_dis_quart = 4;

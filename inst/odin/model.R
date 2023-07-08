@@ -2130,7 +2130,7 @@
   dim(pop_size_d) <-  41
   dim(births_d) <- c(151,2)
   dim(life_expec_d) <-  c(151,41)
-  dim(coverage_d) <- c(77,3)
+  dim(coverage_d) <- c(76,3)
   
   dim(nc0) <- c(4,3)
   dim(hs) <- 3
