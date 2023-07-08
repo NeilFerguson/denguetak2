@@ -10,14 +10,16 @@
   
   YEAR <- TIME/YL ## current model time in years
   
-  NYO <- 20 ## number of year output in post-vacc output vectors
+  NYO <- 15 ## number of years of impact in post-vacc output vectors (2026-2040)
+
   NUM_YEAR_ACCUM <- 4 ## time to accumulate incidence for a couple of output variables
   
   age_per <- YL ## how frequently aging occurs - needs to be year length for precise match to demography
-  N_age <- 28 ## number of age classes
+  N_age <- 40 ## number of age classes
   N_age_p1 <- N_age + 1
-  agec[1:20] <- 1 ## first 20 are 1 year wide
-  agec[21:28] <- 10 ## then next 8 are 10 years wide
+  agec[1:33] <- 1 ## first 33 are 1 year wide
+  agec[34] <-7 ### then 7 years
+  agec[35:40] <- 10 ## then next 8 are 10 years wide
   ## lower boundary of each age class. Extra entry gives upper boundary of last age class 
   ageb[1] <- 0
   ageb[2:(N_age_p1)] <- ageb[i-1]+agec[i-1]
@@ -42,25 +44,30 @@
   
   YEAR_STEP <- 1 ## time between population size estimates given in demography files
   
-  VaccOn <- user() ## 1 if vaccination, 0 if not
-  VaccRoutineAge <- user()
+  VaccOn <- 1 ## hard coded for gavi
+  vca <- user() ## vaccination age for routine 
   ZeroVE <- user() ## 1 for zero VE, 1 for standard VE model
   DoVEInf <- user() ## 1 for VE against inf, 0 for against disease
   
-  vca <- VaccRoutineAge ## age at routine vacc (<20, assuming current age structure)
-  
-  vacc_child_age <- if(vca == 0) N_age_p1 else vca ## VaccRoutineAge==0 means no routine vacc
   ## simulation year that vaccination starts (i.e. when calendar year reaches VACC_YEAR)
   vacc_child_starttime <- EQUILIB_YEARS+VACC_YEAR-FIRST_YEAR
   ## simulation year that vaccination stops (i.e. when calendar year reaches VACC_END_YEAR)
   vacc_child_stoptime <- vacc_child_starttime+VACC_END_YEAR-VACC_YEAR
   ## how many years have passed since vaccination started
   YEARS_POST_VACC <- YEAR-vacc_child_starttime
-
+  ## campaign year
+  CAMPAIGN_YEAR <- coverage_d[1,3] ## gavi coverage file
+  vcu_year <- EQUILIB_YEARS+CAMPAIGN_YEAR-FIRST_YEAR
+  ## rounded version of vcu_year so that it happens during a time step when aging happens
+  ## note that in current implementation, all catch-up doses are given in a single time step
+  ## +1 in line below ensures catch-up happens day after aging, not the same day
+  vacc_cu_rndtime <- floor(vcu_year*YL/age_per)*age_per+1
+  
   ## index to coverage table row
   cov_year <- floor(YEARS_POST_VACC)+1
   ## current coverage (routine only)
   gavi_cov <- if( VaccOn == 0 || YEARS_POST_VACC<0 || YEARS_POST_VACC>VACC_END_YEAR-VACC_YEAR) 0 else coverage_d[as.integer(cov_year),2]
+  gavi_cov_cu <- coverage_d[2,3]
   
   ## new vaccine efficacy model params
   nc0[,] <- user() # Ab at t=0 (by serotype and serostatus) - includes 1/(exp(-ts[j]*hs[j])+exp(-ts[j]*hl[j])) factor
@@ -75,28 +82,25 @@
   nc50_age_under6 <- user()
   nc50_age[1:N_age] <- if(i<6) exp(nc50_age_under6) else 1
   max_ve_decay_time <- user() # how long (days) to let VE decline
+  gavi_vacc_attrib_years <- 5 # mean time to attribute indirect vaccine impact over (exp weighted)
+  gavi_vacc_cohort_years <- 20 # how long to track vaccinated cohorts
+  NYOF <- 35 ## number of years to accumulate indirect impact over (20+NYO)
   
   ## facility exists to have different coverage by serostatus (i.e. to model testing)
   ## variable controlling whether vaccination can vary by serostatus (0=no, 1=yes)
   vacc_by_serostatus <- user()
-  sero_test_sens <-0.896 ## WHO value
-  sero_test_spec <- 0.947 ## WHO vaue
+  sero_test_sens <- 0.8
+  sero_test_spec <- 0.98
   vacc_child_coverage <- if(vacc_by_serostatus==1) gavi_cov*sero_test_sens else gavi_cov
-  vacc_child_coverage_S <- if(vacc_by_serostatus==1) gavi_cov*(1.0-sero_test_spec) else gavi_cov
+  vacc_child_coverage_S <- if(vacc_by_serostatus==1) gavi_cov*(1-sero_test_spec) else gavi_cov
   
   ## catch-up age range. If over N_age then no catch-up
-  vacc_cu_minage <- N_age_p1
-  vacc_cu_maxage <- N_age_p1
+  vacc_cu_minage <- vca+1 ## hard-coded 3 year range 
+  vacc_cu_maxage <- vca+3 ## hard-coded 3 year range
   ## catch-up coverage, again by serostatus
-  vacc_cu_coverage <- 0.0
-  vacc_cu_coverage_S <- 0.0
-  ## year of catch-up campaign - normally on the same year that routine starts
-  vacc_cu_time <- vacc_child_starttime
-  ## rounded version of vacc_cu_time so that it happens during a time step when aging happens
-  ## note that in current implementation, all catch-up doses are given in a single time step
-  ## +1 in line below ensures catch-up happens day after aging, not the same day
-  vacc_cu_rndtime <- floor(vacc_cu_time*YL/age_per)*age_per+1
-  
+  vacc_cu_coverage <- if(vacc_by_serostatus==1) gavi_cov_cu*sero_test_sens else gavi_cov_cu
+  vacc_cu_coverage_S <- if(vacc_by_serostatus==1) gavi_cov_cu*(1-sero_test_spec) else gavi_cov_cu
+
   #### dynamic demog
   
   ## current model year relative to FIRST_YEAR
@@ -152,8 +156,8 @@
   disc_fact <- user() ## discounting factor (p.a.) used for DALYs
   disc_fact_vacc <- user() ## discounting for vaccine doses
   cum_disc <- if(YEARS_POST_VACC<0) 0 else 1.0/(disc_fact^YEARS_POST_VACC)
+  cum_disc_vcu <- if(YEAR < vcu_year) 0 else 1.0/(disc_fact^(YEAR-vcu_year))
   cum_disc_vacc <- if(YEARS_POST_VACC<0) 0 else 1.0/(disc_fact_vacc^YEARS_POST_VACC)
-  
 
   ## proportion of infections causing symptomatic disease in unvaccinated
   
@@ -261,17 +265,17 @@
   
   ## proportion NOT vaccinated as they age out of an age class - seropositives first
   ## j=1 corresponds to unvaccinated states
-  vacc_noncov[1:N_age_p1,1] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i-1 == vacc_child_age)) (1-vacc_child_coverage) else 1)
+  vacc_noncov[1:N_age_p1,1] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i-1 == vca)) (1-vacc_child_coverage) else 1)
   ## j = 2,3 are vaccinated groups, so vacc_noncov==1 (already vaccinated)
   vacc_noncov[1:N_age_p1,2:3] <- 1
   ## now campaigns - happen on a single day
-  vcu_noncov[1:N_age,1] <- (if((TIME == vacc_cu_rndtime) && (i >= vacc_cu_minage) && (i <= vacc_cu_maxage)) (1-vacc_cu_coverage*vacc_cu_age_weight[i]) else 1)
+  vcu_noncov[1:N_age,1] <- (if((TIME == vacc_cu_rndtime) && (ageb[i] >= vacc_cu_minage) && (ageb[i] <= vacc_cu_maxage)) (1-vacc_cu_coverage*vacc_cu_age_weight[i]) else 1)
   vcu_noncov[1:N_age,2:3] <- 1
   
   ## now seronegatives
-  vacc_noncov_S[1:N_age_p1,1] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i-1 == vacc_child_age)) (1-vacc_child_coverage_S) else 1)
+  vacc_noncov_S[1:N_age_p1,1] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i-1 == vca)) (1-vacc_child_coverage_S) else 1)
   vacc_noncov_S[1:N_age_p1,2:3] <- 1
-  vcu_noncov_S[1:N_age,1] <- (if((TIME == vacc_cu_rndtime) && (i >= vacc_cu_minage) && (i <= vacc_cu_maxage)) (1-vacc_cu_coverage_S)*vacc_cu_age_weight[i] else 1)
+  vcu_noncov_S[1:N_age,1] <- (if((TIME == vacc_cu_rndtime) && (ageb[i] >= vacc_cu_minage) && (ageb[i] <= vacc_cu_maxage)) (1-vacc_cu_coverage_S)*vacc_cu_age_weight[i] else 1)
   vcu_noncov_S[1:N_age,2:3] <- 1
   
   
@@ -283,11 +287,11 @@
   cu_time_from_last_dose_base <- if(TIME<vacc_cu_rndtime+YL/4) (TIME-vacc_cu_rndtime) else if(TIME>=vacc_cu_rndtime+YL/4) (TIME-vacc_cu_rndtime-YL/4) else 0
   cu_time_from_last_dose <- if(cu_time_from_last_dose_base>max_ve_decay_time) max_ve_decay_time else cu_time_from_last_dose_base
   
-  youngest_cu_age <- if(vacc_cu_minage<=N_age) ageb[as.integer(vacc_cu_minage+1)]+floor(YEAR-vacc_cu_time) else 1000
-  oldest_cu_age <- if(vacc_cu_minage<=N_age) ageb[as.integer(vacc_cu_maxage+1)]+floor(YEAR-vacc_cu_time) else 1000
+  youngest_cu_age <- if(vacc_cu_minage<=N_age) ageb[as.integer(vacc_cu_minage+1)]+floor(YEAR-vcu_year) else 1000
+  oldest_cu_age <- if(vacc_cu_minage<=N_age) ageb[as.integer(vacc_cu_maxage+1)]+floor(YEAR-vcu_year) else 1000
   
   # vacc_ct[1:N_age] <- if((i<as.integer(vca)+1) || (YEARS_POST_VACC<ageb[i]-ageb[as.integer(vca)+1])) 1e8 else floor(YEAR)-ageb[i]+ageb[as.integer(vca)+1]
-  vacc_ct[1:N_age] <- if(i<as.integer(vca)+1) 1e8 else if(i<=20) floor(YEAR)-ageb[i]+ageb[as.integer(vca)+1] else floor(YEAR)-30+ageb[as.integer(vca)+1]
+  vacc_ct[1:N_age] <- if(i<as.integer(vca)+1) 1e8 else if(i<=34) floor(YEAR)-ageb[i]+ageb[as.integer(vca)+1] else floor(YEAR)-34+ageb[as.integer(vca)+1]
   
   
   ## complicated if clause represents 2 doses at 0 and 3 months (for Takeda)
@@ -744,7 +748,7 @@
   update(cum_infection_tqV[1:N_age]) <- cum_infection_tqV[i] + infection_tq[i,2]+infection_tq[i,3]
 
   
-  ## Takeda WHO outputs:
+  ## Takeda Gavi outputs:
   ##   - symp cases, hosp cases, YLLs
   ##   - total and by serotype
   ##   - for each of the first 20 years of vaccination
@@ -752,10 +756,25 @@
   ## plus: number vaccinated per year
   ## plus most of above (other than serotype specific outputs) calculated with discounting (for health economic calcs)
   
+  dim(out_update_switch) <- NYOF
+  out_update_switch[1:NYOF] <- if(YEARS_POST_VACC>=(i-1) && YEARS_POST_VACC<i) 1 else 0
+
+  wt <- if(YEARS_POST_VACC==NYOF) exp(-1/gavi_vacc_attrib_years) else 0
+  dim(wt_mat) <- c(NYO,NYOF)
+  dim(norm_wt_mat) <- c(NYO,NYOF)
+  dim(sum_wt_mat) <- NYOF
   
-  out_update_switch[1:NYO] <- if(YEARS_POST_VACC>=(i-1) && YEARS_POST_VACC<i) 1 else 0
+  wt_mat[1:NYOF,1:NYOF] <- if(YEARS_POST_VACC!=NYOF) 0 else if((i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else (wt^(j-i))*(out_nvacc_all_pop[i]+1e-3)
+  sum_wt_mat[1:NYOF] <- if(YEARS_POST_VACC==NYOF) sum(wt_mat[,i]) else 0
+  norm_wt_mat[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) wt_mat[i,j]/(sum_wt_mat[j]+1e-10) else 0
   
+  intYPV <- floor(YEARS_POST_VACC)+2 # add 2 since want age group vca+1
+  intYPVC <- floor(YEAR-vcu_year) # add 2 since want age group vca+1  
+
   ## VE over time
+  dim(VE_seroneg) <- NYO
+  dim(VE_seropos_mono) <- NYO
+  dim(VE_seropos_multi) <- NYO
   
   initial(VE_seroneg[1:NYO]) <-0
   initial(VE_seropos_mono[1:NYO]) <-0
@@ -766,6 +785,9 @@
   update(VE_seropos_multi[1:NYO]) <- if(out_update_switch[i]==0||(vca+i-1)>N_age) VE_seropos_multi[i] else RR_dis[1,3,as.integer(vca)+i-1]
   
   ## seropositive at 9 and vacc age- outputs cumulative average over first n (1-20) years of vacc period
+  
+  dim(out_prop_seroneg_at_9) <- NYO
+  dim(out_prop_seroneg_at_vca) <- NYO
   
   prop_seroneg_at_9 <- (S[10,1]+S[10,2]+S[10,3])/(Ntotal[10,1]+Ntotal[10,2]+Ntotal[10,3])
   prop_seroneg_at_vca <- (S[as.integer(vca)+1,1]+S[as.integer(vca)+1,2]+S[as.integer(vca)+1,3])/(Ntotal[as.integer(vca)+1,1]+Ntotal[as.integer(vca)+1,2]+Ntotal[as.integer(vca)+1,3])
@@ -784,15 +806,61 @@
   update(out_prop_seroneg_at_vca[1:NYO]) <- if(out_update_switch[i]==0) out_prop_seroneg_at_vca[i] else av_prop_seroneg_at_vca
   
   ## track symptomatic disease incidence and output cumulative totals
+  
+  dim(disease_sero) <- c(N_age, 3, 4)
+  dim(disease_sero_vacc_pri) <- c(N_age, 4)
+  dim(dis_all_pop_age) <- N_age
+  dim(dis_all_vacc_age) <- N_age
+  dim(dis_sero_vacc) <- 4
+  dim(dis_sero_unvacc) <- 4
+  dim(dis_sero_vacc_neg) <- 4
+  dim(dis_sero_vacc_pos) <- 4
+  dim(dis_sero_vacc_pri) <- 4
+  dim(dis_sero_vacc_secp) <- 4
+  dim(dis_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(dis_unvacc_redist) <- NYO
+  dim(disc_dis_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(disc_dis_unvacc_redist) <- NYO
+  dim(rtn_dis_all_pop) <- NYO
+  dim(disc_rtn_dis_all_pop) <- NYO
+  
+  dim(out_dis_all_vacc) <- NYO
+  dim(out_dis_all_pop) <- NYO
+  dim(out_dis_sero_unvacc) <- c(NYO,4)
+  dim(out_dis_all_unvacc) <- NYOF
+  dim(out_dis_sero_vacc) <- c(NYO,4)
+  dim(out_dis_sero_vacc_neg) <- c(NYO,4)
+  dim(out_dis_sero_vacc_pos) <- c(NYO,4)
+  dim(out_dis_sero_vacc_pri) <- c(NYO,4)
+  dim(out_dis_sero_vacc_secp) <- c(NYO,4)
+  dim(out_disc_dis_all_pop) <- NYO
+  dim(out_disc_dis_all_vacc) <- NYO
+  dim(out_disc_dis_all_unvacc) <- NYOF
+  dim(out_rtn_dis_all_pop) <- NYO
+  dim(out_disc_rtn_dis_all_pop) <- NYO
+  dim(out_dis_unvacc_redist) <- NYO
+  dim(out_disc_dis_unvacc_redist) <- NYO
+  
+  dim(dis_all_vacc_age_u5) <- N_age
+  dim(out_dis_all_unvacc_u5) <- NYOF
+  dim(dis_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(dis_unvacc_redist_u5) <- NYO
+  dim(out_disc_dis_all_unvacc_u5) <- NYOF
+  dim(disc_dis_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(disc_dis_unvacc_redist_u5) <- NYO
+  dim(rtn_dis_all_pop_u5) <- NYO
+  dim(disc_rtn_dis_all_pop_u5) <- NYO
+  dim(out_rtn_dis_all_pop_u5) <- NYO
+  dim(out_disc_rtn_dis_all_pop_u5) <- NYO
+  dim(out_dis_unvacc_redist_u5) <- NYO
+  dim(out_disc_dis_unvacc_redist_u5) <- NYO
+  
   disease_sero[1:N_age,1,1] <- dis_pri[1]*inf_1[i,j]+dis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+dis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+dis_quart[1]*inf_2341[i,j]
   disease_sero[1:N_age,2:3,1] <- RR_dis[1,1,i]*dis_pri[1]*inf_1[i,j]+RR_dis[1,2,i]*dis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+RR_dis[1,3,i]*(dis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+dis_quart[1]*inf_2341[i,j])
-  
   disease_sero[1:N_age,1,2] <- dis_pri[2]*inf_2[i,j]+dis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+dis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+dis_quart[2]*inf_1342[i,j]
   disease_sero[1:N_age,2:3,2] <- RR_dis[2,1,i]*dis_pri[2]*inf_2[i,j]+RR_dis[2,2,i]*dis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+RR_dis[2,3,i]*(dis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+dis_quart[2]*inf_1342[i,j])
-  
   disease_sero[1:N_age,1,3] <- dis_pri[3]*inf_3[i,j]+dis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+dis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+dis_quart[3]*inf_1243[i,j]
   disease_sero[1:N_age,2:3,3] <- RR_dis[3,1,i]*dis_pri[3]*inf_3[i,j]+RR_dis[3,2,i]*dis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+RR_dis[3,3,i]*(dis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+dis_quart[3]*inf_1243[i,j])
-  
   disease_sero[1:N_age,1,4] <- dis_pri[4]*inf_4[i,j]+dis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+dis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+dis_quart[4]*inf_1234[i,j]
   disease_sero[1:N_age,2:3,4] <- RR_dis[4,1,i]*dis_pri[4]*inf_4[i,j]+RR_dis[4,2,i]*dis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+RR_dis[4,3,i]*(dis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+dis_quart[4]*inf_1234[i,j])
   
@@ -801,49 +869,73 @@
   disease_sero_vacc_pri[1:N_age,3] <- dis_pri[3]*RR_dis[3,1,i]*(inf_3[i,2]+inf_3[i,3])
   disease_sero_vacc_pri[1:N_age,4] <- dis_pri[4]*RR_dis[4,1,i]*(inf_4[i,2]+inf_4[i,3])
   
+  dis_all_pop_age[1:N_age] <- sum(disease_sero[i,,])
+  dis_all_vacc_age[1:N_age] <- sum(disease_sero[i,,2:3])
+  dis_all_vacc_age_u5[1:5] <- dis_all_vacc_age[i]
+  dis_all_vacc_age_u5[6:N_age] <- 0
   dis_sero_unvacc[1:4] <- sum(disease_sero[,1,i])
   dis_sero_vacc[1:4] <- sum(disease_sero[,2,i])+sum(disease_sero[,3,i])
-  dis_sero_pop[1:4] <- dis_sero_unvacc[i]+dis_sero_vacc[i]
   dis_sero_vacc_pri[1:4] <- sum(disease_sero_vacc_pri[,i])
-  dis_sero_vacc_secp[1:4] <- dis_sero_vacc[i]-dis_sero_vacc_pri[i] ## corrected after outputs3
+  dis_sero_vacc_secp[1:4] <- dis_sero_vacc[i]-dis_sero_vacc_neg[i]
   dis_sero_vacc_neg[1:4] <- sum(disease_sero[,3,i])
   dis_sero_vacc_pos[1:4] <- sum(disease_sero[,2,i])
-  dis_all_pop <- sum(dis_sero_pop)
-  dis_all_vacc <- sum(dis_sero_vacc)
+  dis_all_pop <- sum(dis_all_pop_age)
+  dis_all_vacc <- sum(dis_all_vacc_age)
   dis_all_unvacc <- sum(dis_sero_unvacc)
-  dis_all_vacc_neg <- sum(dis_sero_vacc_neg)  
-  dis_all_vacc_pos <- sum(dis_sero_vacc_pos)
-  dis_all_vacc_pri <- sum(dis_sero_vacc_pri)  
-  dis_all_vacc_secp <- sum(dis_sero_vacc_secp)
-  disc_dis_all_pop <- dis_all_pop*cum_disc
-  disc_dis_all_vacc <- dis_all_vacc*cum_disc
-
+  disc_dis_all_vacc <- sum(dis_sero_vacc)*cum_disc
+  disc_dis_all_unvacc <- dis_all_unvacc*cum_disc
+  disc_dis_all_pop <- disc_dis_all_vacc+disc_dis_all_unvacc
+  
+  dis_all_unvacc_u5 <- sum(disease_sero[1:5,1,])
+  disc_dis_all_unvacc_u5 <-dis_all_unvacc_u5*cum_disc
+   
+  #track vca cohort
+  rtn_dis_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else dis_all_vacc_age[as.integer(intYPV+vca)-i]
+  cmp_dis_all_pop <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(dis_all_vacc_age[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount disease in cohort from vacc year on
+  disc_rtn_dis_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else rtn_dis_all_pop[i]*cum_disc
+  disc_cmp_dis_all_pop <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else cmp_dis_all_pop*cum_disc
+  
+  #track vca cohort
+  rtn_dis_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else dis_all_vacc_age_u5[as.integer(intYPV+vca)-i]
+  cmp_dis_all_pop_u5 <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(dis_all_vacc_age_u5[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount disease in cohort from vacc year on
+  disc_rtn_dis_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else rtn_dis_all_pop_u5[i]*cum_disc
+  disc_cmp_dis_all_pop_u5 <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else cmp_dis_all_pop_u5*cum_disc
+  
   initial(out_dis_all_pop[1:NYO]) <-0
-  initial(out_dis_sero_pop[1:NYO,1:4]) <-0
-  initial(out_dis_all_unvacc[1:NYO]) <-0
-  initial(out_dis_sero_unvacc[1:NYO,1:4]) <-0
   initial(out_dis_all_vacc[1:NYO]) <-0
-  initial(out_dis_all_vacc_neg[1:NYO]) <-0
-  initial(out_dis_all_vacc_pos[1:NYO]) <-0
-  initial(out_dis_all_vacc_pri[1:NYO]) <-0
-  initial(out_dis_all_vacc_secp[1:NYO]) <-0
+  initial(out_dis_sero_unvacc[1:NYO,1:4]) <-0
+  initial(out_dis_all_unvacc[1:NYO]) <-0
   initial(out_dis_sero_vacc[1:NYO,1:4]) <-0
   initial(out_dis_sero_vacc_neg[1:NYO,1:4]) <-0
   initial(out_dis_sero_vacc_pos[1:NYO,1:4]) <-0
   initial(out_dis_sero_vacc_pri[1:NYO,1:4]) <-0
   initial(out_dis_sero_vacc_secp[1:NYO,1:4]) <-0
-  initial(out_disc_dis_all_pop[1:NYO]) <-0
-  initial(out_disc_dis_all_vacc[1:NYO]) <-0
+  initial(out_disc_dis_all_pop[1:NYO]) <- 0
+  initial(out_disc_dis_all_vacc[1:NYO]) <- 0
+  initial(out_disc_dis_all_unvacc[1:NYOF]) <- 0
+  
+  initial(out_rtn_dis_all_pop[1:NYO]) <-0
+  initial(out_cmp_dis_all_pop) <-0
+  initial(out_disc_rtn_dis_all_pop[1:NYO]) <-0
+  initial(out_disc_cmp_dis_all_pop) <-0
+  initial(out_dis_unvacc_redist[1:NYO]) <-0
+  initial(out_disc_dis_unvacc_redist[1:NYO]) <-0
+  
+  initial(out_dis_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_disc_dis_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_rtn_dis_all_pop_u5[1:NYO]) <-0
+  initial(out_cmp_dis_all_pop_u5) <-0
+  initial(out_disc_rtn_dis_all_pop_u5[1:NYO]) <-0
+  initial(out_disc_cmp_dis_all_pop_u5) <-0
+  initial(out_dis_unvacc_redist_u5[1:NYO]) <-0
+  initial(out_disc_dis_unvacc_redist_u5[1:NYO]) <-0
   
   update(out_dis_all_pop[1:NYO]) <- out_dis_all_pop[i] + (if(out_update_switch[i]==0) 0 else dis_all_pop)
-  update(out_dis_sero_pop[1:NYO,1:4]) <- out_dis_sero_pop[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_pop[j])
-  update(out_dis_all_unvacc[1:NYO]) <- out_dis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else dis_all_unvacc)
   update(out_dis_sero_unvacc[1:NYO,1:4]) <- out_dis_sero_unvacc[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_unvacc[j])
+  update(out_dis_all_unvacc[1:NYOF]) <- out_dis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else dis_all_unvacc)
   update(out_dis_all_vacc[1:NYO]) <- out_dis_all_vacc[i] + (if(out_update_switch[i]==0) 0 else dis_all_vacc)
-  update(out_dis_all_vacc_neg[1:NYO]) <- out_dis_all_vacc_neg[i] + (if(out_update_switch[i]==0) 0 else dis_all_vacc_neg)
-  update(out_dis_all_vacc_pos[1:NYO]) <- out_dis_all_vacc_pos[i] + (if(out_update_switch[i]==0) 0 else dis_all_vacc_pos)
-  update(out_dis_all_vacc_pri[1:NYO]) <- out_dis_all_vacc_pri[i] + (if(out_update_switch[i]==0) 0 else dis_all_vacc_pri)
-  update(out_dis_all_vacc_secp[1:NYO]) <- out_dis_all_vacc_secp[i] + (if(out_update_switch[i]==0) 0 else dis_all_vacc_secp)
   update(out_dis_sero_vacc[1:NYO,1:4]) <- out_dis_sero_vacc[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_vacc[j])
   update(out_dis_sero_vacc_neg[1:NYO,1:4]) <- out_dis_sero_vacc_neg[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_vacc_neg[j])
   update(out_dis_sero_vacc_pos[1:NYO,1:4]) <- out_dis_sero_vacc_pos[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_vacc_pos[j])
@@ -851,118 +943,168 @@
   update(out_dis_sero_vacc_secp[1:NYO,1:4]) <- out_dis_sero_vacc_secp[i,j] + (if(out_update_switch[i]==0) 0 else dis_sero_vacc_secp[j])
   update(out_disc_dis_all_pop[1:NYO]) <- out_disc_dis_all_pop[i] + (if(out_update_switch[i]==0) 0 else disc_dis_all_pop)
   update(out_disc_dis_all_vacc[1:NYO]) <- out_disc_dis_all_vacc[i] + (if(out_update_switch[i]==0) 0 else disc_dis_all_vacc)
-  
-  initial(tot_inc_dis) <- 0
-  update(tot_inc_dis) <- (if(NUM_YEAR_ACCUM*floor(YEAR/NUM_YEAR_ACCUM)==YEAR) 0 else tot_inc_dis)+1e5*dis_all_pop/NT
-  
-  intYPV <- floor(YEARS_POST_VACC)+1 # add 2 since want age group vca+1
-  
-  cohort_nvacc_neg <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else Ntotal[as.integer(intYPV+vca),3]
-  cohort_nvacc_pos <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else Ntotal[as.integer(intYPV+vca),2]
-  dim(out_cohort_nvacc_neg) <- NYO
-  dim(out_cohort_nvacc_pos) <- NYO
-  initial(out_cohort_nvacc_neg[1:NYO]) <-0
-  initial(out_cohort_nvacc_pos[1:NYO]) <-0
-  update(out_cohort_nvacc_neg[1:NYO]) <- if(out_update_switch[i]==0) out_cohort_nvacc_neg[i] else cohort_nvacc_neg
-  update(out_cohort_nvacc_pos[1:NYO]) <- if(out_update_switch[i]==0) out_cohort_nvacc_pos[i] else cohort_nvacc_pos
-  
-  dim(cohort_dis_sero_unvacc) <- 4
-  dim(cohort_dis_sero_vacc) <- 4
-  dim(cohort_dis_sero_vacc_pri) <- 4
-  dim(cohort_dis_sero_vacc_secp) <- 4
-  dim(cohort_dis_sero_vacc_neg) <- 4
-  dim(cohort_dis_sero_vacc_pos) <- 4
-  
-  cohort_dis_sero_unvacc[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else disease_sero[as.integer(intYPV+vca),1,i]
-  cohort_dis_sero_vacc[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sum(disease_sero[as.integer(intYPV+vca),2:3,i])
-  cohort_dis_sero_vacc_pri[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else disease_sero_vacc_pri[as.integer(intYPV+vca),i]
-  cohort_dis_sero_vacc_secp[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else cohort_dis_sero_vacc[i]-cohort_dis_sero_vacc_pri[i]
-  cohort_dis_sero_vacc_neg[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else disease_sero[as.integer(intYPV+vca),3,i]
-  cohort_dis_sero_vacc_pos[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else disease_sero[as.integer(intYPV+vca),2,i]
+  update(out_disc_dis_all_unvacc[1:NYOF]) <- out_disc_dis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else disc_dis_all_unvacc)
 
-  dim(out_cohort_dis_sero_unvacc) <- c(NYO,4)
-  dim(out_cohort_dis_sero_vacc) <- c(NYO,4)
-  dim(out_cohort_dis_sero_vacc_pri) <- c(NYO,4)
-  dim(out_cohort_dis_sero_vacc_secp) <- c(NYO,4)
-  dim(out_cohort_dis_sero_vacc_neg) <- c(NYO,4)
-  dim(out_cohort_dis_sero_vacc_pos) <- c(NYO,4)
+  update(out_rtn_dis_all_pop[1:NYO]) <- out_rtn_dis_all_pop[i] + rtn_dis_all_pop[i]
+  update(out_cmp_dis_all_pop) <- out_cmp_dis_all_pop + cmp_dis_all_pop
+  update(out_disc_rtn_dis_all_pop[1:NYO]) <- out_disc_rtn_dis_all_pop[i] + disc_rtn_dis_all_pop[i]
+  update(out_disc_cmp_dis_all_pop) <- out_disc_cmp_dis_all_pop + disc_cmp_dis_all_pop
   
-  initial(out_cohort_dis_sero_unvacc[1:NYO,1:4]) <-0
-  initial(out_cohort_dis_sero_vacc[1:NYO,1:4]) <-0
-  initial(out_cohort_dis_sero_vacc_pri[1:NYO,1:4]) <-0
-  initial(out_cohort_dis_sero_vacc_secp[1:NYO,1:4]) <-0
-  initial(out_cohort_dis_sero_vacc_neg[1:NYO,1:4]) <-0
-  initial(out_cohort_dis_sero_vacc_pos[1:NYO,1:4]) <-0
+  dis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_dis_all_unvacc[j] else 0
+  dis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(dis_unvacc_redist_m[i,]) else 0
+  disc_dis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_dis_all_unvacc[j] else 0
+  disc_dis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_dis_unvacc_redist_m[i,]) else 0
   
-  update(out_cohort_dis_sero_unvacc[1:NYO,1:4]) <- out_cohort_dis_sero_unvacc[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_unvacc[j])
-  update(out_cohort_dis_sero_vacc[1:NYO,1:4]) <- out_cohort_dis_sero_vacc[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_vacc[j])
-  update(out_cohort_dis_sero_vacc_pri[1:NYO,1:4]) <- out_cohort_dis_sero_vacc_pri[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_vacc_pri[j])
-  update(out_cohort_dis_sero_vacc_secp[1:NYO,1:4]) <- out_cohort_dis_sero_vacc_secp[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_vacc_secp[j])
-  update(out_cohort_dis_sero_vacc_neg[1:NYO,1:4]) <- out_cohort_dis_sero_vacc_neg[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_vacc_neg[j])
-  update(out_cohort_dis_sero_vacc_pos[1:NYO,1:4]) <- out_cohort_dis_sero_vacc_pos[i,j] + (if(out_update_switch[i]==0) 0 else cohort_dis_sero_vacc_pos[j])
-
-
+  update(out_dis_unvacc_redist[1:NYO]) <- out_dis_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) dis_unvacc_redist[i] else 0)
+  update(out_disc_dis_unvacc_redist[1:NYO]) <- out_disc_dis_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) disc_dis_unvacc_redist[i] else 0)
+  
+  update(out_rtn_dis_all_pop_u5[1:NYO]) <- out_rtn_dis_all_pop_u5[i] + rtn_dis_all_pop_u5[i]
+  update(out_cmp_dis_all_pop_u5) <- out_cmp_dis_all_pop_u5 + cmp_dis_all_pop_u5
+  update(out_disc_rtn_dis_all_pop_u5[1:NYO]) <- out_disc_rtn_dis_all_pop_u5[i] + disc_rtn_dis_all_pop_u5[i]
+  update(out_disc_cmp_dis_all_pop_u5) <- out_disc_cmp_dis_all_pop_u5 + disc_cmp_dis_all_pop_u5
+  update(out_dis_all_unvacc_u5[1:NYOF]) <- out_dis_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else dis_all_unvacc_u5)
+  update(out_disc_dis_all_unvacc_u5[1:NYOF]) <- out_disc_dis_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else disc_dis_all_unvacc_u5)
+  
+  dis_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_dis_all_unvacc_u5[j] else 0
+  dis_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(dis_unvacc_redist_m_u5[i,]) else 0
+  disc_dis_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_dis_all_unvacc_u5[j] else 0
+  disc_dis_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_dis_unvacc_redist_m_u5[i,]) else 0
+  
+  update(out_dis_unvacc_redist_u5[1:NYO]) <- out_dis_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) dis_unvacc_redist_u5[i] else 0)
+  update(out_disc_dis_unvacc_redist_u5[1:NYO]) <- out_disc_dis_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) disc_dis_unvacc_redist_u5[i] else 0)
+  
+  
   ## severe disease
+  
+  dim(sdisease_sero) <- c(N_age, 3, 4)
+  dim(sdisease_sero_vacc_pri) <- c(N_age, 4)
+  dim(sdis_all_pop_age) <- N_age
+  dim(sdis_all_vacc_age) <- N_age
+  dim(sdis_sero_vacc) <- 4
+  dim(sdis_sero_unvacc) <- 4
+  dim(sdis_sero_vacc_neg) <- 4
+  dim(sdis_sero_vacc_pos) <- 4
+  dim(sdis_sero_vacc_pri) <- 4
+  dim(sdis_sero_vacc_secp) <- 4
+  dim(sdis_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(sdis_unvacc_redist) <- NYO
+  dim(disc_sdis_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(disc_sdis_unvacc_redist) <- NYO
+  dim(rtn_sdis_all_pop) <- NYO
+  dim(disc_rtn_sdis_all_pop) <- NYO
+  
+  dim(out_sdis_all_vacc) <- NYO
+  dim(out_sdis_all_pop) <- NYO
+  dim(out_sdis_sero_unvacc) <- c(NYO,4)
+  dim(out_sdis_all_unvacc) <- NYOF
+  dim(out_sdis_sero_vacc) <- c(NYO,4)
+  dim(out_sdis_sero_vacc_neg) <- c(NYO,4)
+  dim(out_sdis_sero_vacc_pos) <- c(NYO,4)
+  dim(out_sdis_sero_vacc_pri) <- c(NYO,4)
+  dim(out_sdis_sero_vacc_secp) <- c(NYO,4)
+  dim(out_disc_sdis_all_pop) <- NYO
+  dim(out_disc_sdis_all_vacc) <- NYO
+  dim(out_disc_sdis_all_unvacc) <- NYOF
+  dim(out_rtn_sdis_all_pop) <- NYO
+  dim(out_disc_rtn_sdis_all_pop) <- NYO
+  dim(out_sdis_unvacc_redist) <- NYO
+  dim(out_disc_sdis_unvacc_redist) <- NYO
+  
+  dim(sdis_all_vacc_age_u5) <- N_age
+  dim(out_sdis_all_unvacc_u5) <- NYOF
+  dim(sdis_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(sdis_unvacc_redist_u5) <- NYO
+  dim(out_disc_sdis_all_unvacc_u5) <- NYOF
+  dim(disc_sdis_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(disc_sdis_unvacc_redist_u5) <- NYO
+  dim(rtn_sdis_all_pop_u5) <- NYO
+  dim(disc_rtn_sdis_all_pop_u5) <- NYO
+  dim(out_rtn_sdis_all_pop_u5) <- NYO
+  dim(out_disc_rtn_sdis_all_pop_u5) <- NYO
+  dim(out_sdis_unvacc_redist_u5) <- NYO
+  dim(out_disc_sdis_unvacc_redist_u5) <- NYO
+  
   sdisease_sero[1:N_age,1,1] <- sdis_pri[1]*inf_1[i,j]+sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j]
-  sdisease_sero[1:N_age,2:3,1] <- RR_sdis[1,1,i]*sdis_pri[1]*inf_1[i,j]+RR_sdis[1,2,i]*sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+RR_sdis[1,3,i]*(sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j])
-  
+  sdisease_sero[1:N_age,2:3,1] <- RR_dis[1,1,i]*sdis_pri[1]*inf_1[i,j]+RR_dis[1,2,i]*sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+RR_dis[1,3,i]*(sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j])
   sdisease_sero[1:N_age,1,2] <- sdis_pri[2]*inf_2[i,j]+sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j]
-  sdisease_sero[1:N_age,2:3,2] <- RR_sdis[2,1,i]*sdis_pri[2]*inf_2[i,j]+RR_sdis[2,2,i]*sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+RR_sdis[2,3,i]*(sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j])
-  
+  sdisease_sero[1:N_age,2:3,2] <- RR_dis[2,1,i]*sdis_pri[2]*inf_2[i,j]+RR_dis[2,2,i]*sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+RR_dis[2,3,i]*(sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j])
   sdisease_sero[1:N_age,1,3] <- sdis_pri[3]*inf_3[i,j]+sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j]
-  sdisease_sero[1:N_age,2:3,3] <- RR_sdis[3,1,i]*sdis_pri[3]*inf_3[i,j]+RR_sdis[3,2,i]*sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+RR_sdis[3,3,i]*(sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j])
-  
+  sdisease_sero[1:N_age,2:3,3] <- RR_dis[3,1,i]*sdis_pri[3]*inf_3[i,j]+RR_dis[3,2,i]*sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+RR_dis[3,3,i]*(sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j])
   sdisease_sero[1:N_age,1,4] <- sdis_pri[4]*inf_4[i,j]+sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j]
-  sdisease_sero[1:N_age,2:3,4] <- RR_sdis[4,1,i]*sdis_pri[4]*inf_4[i,j]+RR_sdis[4,2,i]*sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+RR_sdis[4,3,i]*(sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j])
+  sdisease_sero[1:N_age,2:3,4] <- RR_dis[4,1,i]*sdis_pri[4]*inf_4[i,j]+RR_dis[4,2,i]*sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+RR_dis[4,3,i]*(sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j])
   
-  sdisease_sero_vacc_pri[1:N_age,1] <- sdis_pri[1]*RR_sdis[1,1,i]*(inf_1[i,2]+inf_1[i,3])
-  sdisease_sero_vacc_pri[1:N_age,2] <- sdis_pri[2]*RR_sdis[2,1,i]*(inf_2[i,2]+inf_2[i,3])
-  sdisease_sero_vacc_pri[1:N_age,3] <- sdis_pri[3]*RR_sdis[3,1,i]*(inf_3[i,2]+inf_3[i,3])
-  sdisease_sero_vacc_pri[1:N_age,4] <- sdis_pri[4]*RR_sdis[4,1,i]*(inf_4[i,2]+inf_4[i,3])
+  sdisease_sero_vacc_pri[1:N_age,1] <- sdis_pri[1]*RR_dis[1,1,i]*(inf_1[i,2]+inf_1[i,3])
+  sdisease_sero_vacc_pri[1:N_age,2] <- sdis_pri[2]*RR_dis[2,1,i]*(inf_2[i,2]+inf_2[i,3])
+  sdisease_sero_vacc_pri[1:N_age,3] <- sdis_pri[3]*RR_dis[3,1,i]*(inf_3[i,2]+inf_3[i,3])
+  sdisease_sero_vacc_pri[1:N_age,4] <- sdis_pri[4]*RR_dis[4,1,i]*(inf_4[i,2]+inf_4[i,3])
   
+  sdis_all_pop_age[1:N_age] <- sum(sdisease_sero[i,,])
+  sdis_all_vacc_age[1:N_age] <- sum(sdisease_sero[i,,2:3])
+  sdis_all_vacc_age_u5[1:5] <- sdis_all_vacc_age[i]
+  sdis_all_vacc_age_u5[6:N_age] <- 0
   sdis_sero_unvacc[1:4] <- sum(sdisease_sero[,1,i])
   sdis_sero_vacc[1:4] <- sum(sdisease_sero[,2,i])+sum(sdisease_sero[,3,i])
-  sdis_sero_pop[1:4] <- sdis_sero_unvacc[i]+sdis_sero_vacc[i]
   sdis_sero_vacc_pri[1:4] <- sum(sdisease_sero_vacc_pri[,i])
-  sdis_sero_vacc_secp[1:4] <- sdis_sero_vacc[i]-sdis_sero_vacc_pri[i] # corrected after outputs3
+  sdis_sero_vacc_secp[1:4] <- sdis_sero_vacc[i]-sdis_sero_vacc_neg[i]
   sdis_sero_vacc_neg[1:4] <- sum(sdisease_sero[,3,i])
   sdis_sero_vacc_pos[1:4] <- sum(sdisease_sero[,2,i])
-  sdis_all_pop <- sum(sdis_sero_pop)
-  sdis_all_vacc <- sum(sdis_sero_vacc)
+  sdis_all_pop <- sum(sdis_all_pop_age)
+  sdis_all_vacc <- sum(sdis_all_vacc_age)
   sdis_all_unvacc <- sum(sdis_sero_unvacc)
-  sdis_all_vacc_neg <- sum(sdis_sero_vacc_neg)  
-  sdis_all_vacc_pos <- sum(sdis_sero_vacc_pos)
-  sdis_all_vacc_pri <- sum(sdis_sero_vacc_pri)  
-  sdis_all_vacc_secp <- sum(sdis_sero_vacc_secp)
-  disc_sdis_all_pop <- sdis_all_pop*cum_disc
-  disc_sdis_all_vacc <- sdis_all_vacc*cum_disc
+  disc_sdis_all_vacc <- sum(sdis_sero_vacc)*cum_disc
+  disc_sdis_all_unvacc <- sdis_all_unvacc*cum_disc
+  disc_sdis_all_pop <- disc_sdis_all_vacc+disc_sdis_all_unvacc
+  
+  sdis_all_unvacc_u5 <- sum(sdisease_sero[1:5,1,])
+  disc_sdis_all_unvacc_u5 <-sdis_all_unvacc_u5*cum_disc
+  
+  #track vca cohort
+  rtn_sdis_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else sdis_all_vacc_age[as.integer(intYPV+vca)-i]
+  cmp_sdis_all_pop <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(sdis_all_vacc_age[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount sdisease in cohort from vacc year on
+  disc_rtn_sdis_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else rtn_sdis_all_pop[i]*cum_disc
+  disc_cmp_sdis_all_pop <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else cmp_sdis_all_pop*cum_disc
+  
+  #track vca cohort
+  rtn_sdis_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else sdis_all_vacc_age_u5[as.integer(intYPV+vca)-i]
+  cmp_sdis_all_pop_u5 <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(sdis_all_vacc_age_u5[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount sdisease in cohort from vacc year on
+  disc_rtn_sdis_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else rtn_sdis_all_pop_u5[i]*cum_disc
+  disc_cmp_sdis_all_pop_u5 <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else cmp_sdis_all_pop_u5*cum_disc
   
   initial(out_sdis_all_pop[1:NYO]) <-0
-  initial(out_sdis_sero_pop[1:NYO,1:4]) <-0
-  initial(out_sdis_all_unvacc[1:NYO]) <-0
-  initial(out_sdis_sero_unvacc[1:NYO,1:4]) <-0
   initial(out_sdis_all_vacc[1:NYO]) <-0
-  initial(out_sdis_all_vacc_neg[1:NYO]) <-0
-  initial(out_sdis_all_vacc_pos[1:NYO]) <-0
-  initial(out_sdis_all_vacc_pri[1:NYO]) <-0
-  initial(out_sdis_all_vacc_secp[1:NYO]) <-0
+  initial(out_sdis_sero_unvacc[1:NYO,1:4]) <-0
+  initial(out_sdis_all_unvacc[1:NYO]) <-0
   initial(out_sdis_sero_vacc[1:NYO,1:4]) <-0
   initial(out_sdis_sero_vacc_neg[1:NYO,1:4]) <-0
   initial(out_sdis_sero_vacc_pos[1:NYO,1:4]) <-0
   initial(out_sdis_sero_vacc_pri[1:NYO,1:4]) <-0
   initial(out_sdis_sero_vacc_secp[1:NYO,1:4]) <-0
-  initial(out_disc_sdis_all_pop[1:NYO]) <-0
-  initial(out_disc_sdis_all_vacc[1:NYO]) <-0
+  initial(out_disc_sdis_all_pop[1:NYO]) <- 0
+  initial(out_disc_sdis_all_vacc[1:NYO]) <- 0
+  initial(out_disc_sdis_all_unvacc[1:NYOF]) <- 0
+  
+  initial(out_rtn_sdis_all_pop[1:NYO]) <-0
+  initial(out_cmp_sdis_all_pop) <-0
+  initial(out_disc_rtn_sdis_all_pop[1:NYO]) <-0
+  initial(out_disc_cmp_sdis_all_pop) <-0
+  initial(out_sdis_unvacc_redist[1:NYO]) <-0
+  initial(out_disc_sdis_unvacc_redist[1:NYO]) <-0
+  
+  initial(out_sdis_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_disc_sdis_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_rtn_sdis_all_pop_u5[1:NYO]) <-0
+  initial(out_cmp_sdis_all_pop_u5) <-0
+  initial(out_disc_rtn_sdis_all_pop_u5[1:NYO]) <-0
+  initial(out_disc_cmp_sdis_all_pop_u5) <-0
+  initial(out_sdis_unvacc_redist_u5[1:NYO]) <-0
+  initial(out_disc_sdis_unvacc_redist_u5[1:NYO]) <-0
   
   update(out_sdis_all_pop[1:NYO]) <- out_sdis_all_pop[i] + (if(out_update_switch[i]==0) 0 else sdis_all_pop)
-  update(out_sdis_sero_pop[1:NYO,1:4]) <- out_sdis_sero_pop[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_pop[j])
-  update(out_sdis_all_unvacc[1:NYO]) <- out_sdis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else sdis_all_unvacc)
   update(out_sdis_sero_unvacc[1:NYO,1:4]) <- out_sdis_sero_unvacc[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_unvacc[j])
+  update(out_sdis_all_unvacc[1:NYOF]) <- out_sdis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else sdis_all_unvacc)
   update(out_sdis_all_vacc[1:NYO]) <- out_sdis_all_vacc[i] + (if(out_update_switch[i]==0) 0 else sdis_all_vacc)
-  update(out_sdis_all_vacc_neg[1:NYO]) <- out_sdis_all_vacc_neg[i] + (if(out_update_switch[i]==0) 0 else sdis_all_vacc_neg)
-  update(out_sdis_all_vacc_pos[1:NYO]) <- out_sdis_all_vacc_pos[i] + (if(out_update_switch[i]==0) 0 else sdis_all_vacc_pos)
-  update(out_sdis_all_vacc_pri[1:NYO]) <- out_sdis_all_vacc_pri[i] + (if(out_update_switch[i]==0) 0 else sdis_all_vacc_pri)
-  update(out_sdis_all_vacc_secp[1:NYO]) <- out_sdis_all_vacc_secp[i] + (if(out_update_switch[i]==0) 0 else sdis_all_vacc_secp)
   update(out_sdis_sero_vacc[1:NYO,1:4]) <- out_sdis_sero_vacc[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_vacc[j])
   update(out_sdis_sero_vacc_neg[1:NYO,1:4]) <- out_sdis_sero_vacc_neg[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_vacc_neg[j])
   update(out_sdis_sero_vacc_pos[1:NYO,1:4]) <- out_sdis_sero_vacc_pos[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_vacc_pos[j])
@@ -970,93 +1112,163 @@
   update(out_sdis_sero_vacc_secp[1:NYO,1:4]) <- out_sdis_sero_vacc_secp[i,j] + (if(out_update_switch[i]==0) 0 else sdis_sero_vacc_secp[j])
   update(out_disc_sdis_all_pop[1:NYO]) <- out_disc_sdis_all_pop[i] + (if(out_update_switch[i]==0) 0 else disc_sdis_all_pop)
   update(out_disc_sdis_all_vacc[1:NYO]) <- out_disc_sdis_all_vacc[i] + (if(out_update_switch[i]==0) 0 else disc_sdis_all_vacc)
+  update(out_disc_sdis_all_unvacc[1:NYOF]) <- out_disc_sdis_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else disc_sdis_all_unvacc)
   
-  dim(cohort_sdis_sero_unvacc) <- 4
-  dim(cohort_sdis_sero_vacc) <- 4
-  dim(cohort_sdis_sero_vacc_pri) <- 4
-  dim(cohort_sdis_sero_vacc_secp) <- 4
-  dim(cohort_sdis_sero_vacc_neg) <- 4
-  dim(cohort_sdis_sero_vacc_pos) <- 4
+  update(out_rtn_sdis_all_pop[1:NYO]) <- out_rtn_sdis_all_pop[i] + rtn_sdis_all_pop[i]
+  update(out_cmp_sdis_all_pop) <- out_cmp_sdis_all_pop + cmp_sdis_all_pop
+  update(out_disc_rtn_sdis_all_pop[1:NYO]) <- out_disc_rtn_sdis_all_pop[i] + disc_rtn_sdis_all_pop[i]
+  update(out_disc_cmp_sdis_all_pop) <- out_disc_cmp_sdis_all_pop + disc_cmp_sdis_all_pop
   
-  cohort_sdis_sero_unvacc[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sdisease_sero[as.integer(intYPV+vca),1,i]
-  cohort_sdis_sero_vacc[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sum(sdisease_sero[as.integer(intYPV+vca),2:3,i])
-  cohort_sdis_sero_vacc_pri[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sdisease_sero_vacc_pri[as.integer(intYPV+vca),i]
-  cohort_sdis_sero_vacc_secp[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else cohort_sdis_sero_vacc[i]-cohort_sdis_sero_vacc_pri[i]
-  cohort_sdis_sero_vacc_neg[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sdisease_sero[as.integer(intYPV+vca),3,i]
-  cohort_sdis_sero_vacc_pos[1:4] <- if((YEARS_POST_VACC<0)||((YEARS_POST_VACC)>=20)) 0 else sdisease_sero[as.integer(intYPV+vca),2,i]
+  sdis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_sdis_all_unvacc[j] else 0
+  sdis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(sdis_unvacc_redist_m[i,]) else 0
+  disc_sdis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_sdis_all_unvacc[j] else 0
+  disc_sdis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_sdis_unvacc_redist_m[i,]) else 0
   
-  dim(out_cohort_sdis_sero_unvacc) <- c(NYO,4)
-  dim(out_cohort_sdis_sero_vacc) <- c(NYO,4)
-  dim(out_cohort_sdis_sero_vacc_pri) <- c(NYO,4)
-  dim(out_cohort_sdis_sero_vacc_secp) <- c(NYO,4)
-  dim(out_cohort_sdis_sero_vacc_neg) <- c(NYO,4)
-  dim(out_cohort_sdis_sero_vacc_pos) <- c(NYO,4)
+  update(out_sdis_unvacc_redist[1:NYO]) <- out_sdis_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) sdis_unvacc_redist[i] else 0)
+  update(out_disc_sdis_unvacc_redist[1:NYO]) <- out_disc_sdis_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) disc_sdis_unvacc_redist[i] else 0)
   
-  initial(out_cohort_sdis_sero_unvacc[1:NYO,1:4]) <-0
-  initial(out_cohort_sdis_sero_vacc[1:NYO,1:4]) <-0
-  initial(out_cohort_sdis_sero_vacc_pri[1:NYO,1:4]) <-0
-  initial(out_cohort_sdis_sero_vacc_secp[1:NYO,1:4]) <-0
-  initial(out_cohort_sdis_sero_vacc_neg[1:NYO,1:4]) <-0
-  initial(out_cohort_sdis_sero_vacc_pos[1:NYO,1:4]) <-0
+  update(out_rtn_sdis_all_pop_u5[1:NYO]) <- out_rtn_sdis_all_pop_u5[i] + rtn_sdis_all_pop_u5[i]
+  update(out_cmp_sdis_all_pop_u5) <- out_cmp_sdis_all_pop_u5 + cmp_sdis_all_pop_u5
+  update(out_disc_rtn_sdis_all_pop_u5[1:NYO]) <- out_disc_rtn_sdis_all_pop_u5[i] + disc_rtn_sdis_all_pop_u5[i]
+  update(out_disc_cmp_sdis_all_pop_u5) <- out_disc_cmp_sdis_all_pop_u5 + disc_cmp_sdis_all_pop_u5
+  update(out_sdis_all_unvacc_u5[1:NYOF]) <- out_sdis_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else sdis_all_unvacc_u5)
+  update(out_disc_sdis_all_unvacc_u5[1:NYOF]) <- out_disc_sdis_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else disc_sdis_all_unvacc_u5)
   
-  update(out_cohort_sdis_sero_unvacc[1:NYO,1:4]) <- out_cohort_sdis_sero_unvacc[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_unvacc[j])
-  update(out_cohort_sdis_sero_vacc[1:NYO,1:4]) <- out_cohort_sdis_sero_vacc[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_vacc[j])
-  update(out_cohort_sdis_sero_vacc_pri[1:NYO,1:4]) <- out_cohort_sdis_sero_vacc_pri[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_vacc_pri[j])
-  update(out_cohort_sdis_sero_vacc_secp[1:NYO,1:4]) <- out_cohort_sdis_sero_vacc_secp[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_vacc_secp[j])
-  update(out_cohort_sdis_sero_vacc_neg[1:NYO,1:4]) <- out_cohort_sdis_sero_vacc_neg[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_vacc_neg[j])
-  update(out_cohort_sdis_sero_vacc_pos[1:NYO,1:4]) <- out_cohort_sdis_sero_vacc_pos[i,j] + (if(out_update_switch[i]==0) 0 else cohort_sdis_sero_vacc_pos[j])
+  sdis_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_sdis_all_unvacc_u5[j] else 0
+  sdis_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(sdis_unvacc_redist_m_u5[i,]) else 0
+  disc_sdis_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_sdis_all_unvacc_u5[j] else 0
+  disc_sdis_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_sdis_unvacc_redist_m_u5[i,]) else 0
+  
+  update(out_sdis_unvacc_redist_u5[1:NYO]) <- out_sdis_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) sdis_unvacc_redist_u5[i] else 0)
+  update(out_disc_sdis_unvacc_redist_u5[1:NYO]) <- out_disc_sdis_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) disc_sdis_unvacc_redist_u5[i] else 0)
   
   
   ## years of life lost
+  
+
+  dim(yll_sero) <- c(N_age, 3, 4)
+  dim(yll_sero_vacc_pri_age) <- c(N_age, 4)
+  dim(disc_yll_all) <- c(N_age, 3)
+  dim(yll_all_pop_age) <- N_age
+  dim(yll_all_vacc_age) <- N_age
+  dim(yll_sero_vacc) <- 4
+  dim(yll_sero_unvacc) <- 4
+  dim(yll_sero_vacc_neg) <- 4
+  dim(yll_sero_vacc_pos) <- 4
+  dim(yll_sero_vacc_pri) <- 4
+  dim(yll_sero_vacc_secp) <- 4
+  dim(yll_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(yll_unvacc_redist) <- NYO
+  dim(disc_yll_unvacc_redist_m) <- c(NYO,NYOF)
+  dim(disc_yll_unvacc_redist) <- NYO
+  dim(rtn_yll_all_pop) <- NYO
+  dim(disc_rtn_yll_all_pop) <- NYO
+  
+  dim(out_yll_all_vacc) <- NYO
+  dim(out_yll_all_pop) <- NYO
+  dim(out_yll_sero_unvacc) <- c(NYO,4)
+  dim(out_yll_all_unvacc) <- NYOF
+  dim(out_yll_sero_vacc) <- c(NYO,4)
+  dim(out_yll_sero_vacc_neg) <- c(NYO,4)
+  dim(out_yll_sero_vacc_pos) <- c(NYO,4)
+  dim(out_yll_sero_vacc_pri) <- c(NYO,4)
+  dim(out_yll_sero_vacc_secp) <- c(NYO,4)
+  dim(out_disc_yll_all_pop) <- NYO
+  dim(out_disc_yll_all_vacc) <- NYO
+  dim(out_disc_yll_all_unvacc) <- NYOF
+  dim(out_rtn_yll_all_pop) <- NYO
+  dim(out_disc_rtn_yll_all_pop) <- NYO
+  dim(out_yll_unvacc_redist) <- NYO
+  dim(out_disc_yll_unvacc_redist) <- NYO
+  
+  dim(yll_all_vacc_age_u5) <- N_age
+  dim(out_yll_all_unvacc_u5) <- NYOF
+  dim(yll_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(yll_unvacc_redist_u5) <- NYO
+  dim(out_disc_yll_all_unvacc_u5) <- NYOF
+  dim(disc_yll_unvacc_redist_m_u5) <- c(NYO,NYOF)
+  dim(disc_yll_unvacc_redist_u5) <- NYO
+  dim(rtn_yll_all_pop_u5) <- NYO
+  dim(disc_rtn_yll_all_pop_u5) <- NYO
+  dim(out_rtn_yll_all_pop_u5) <- NYO
+  dim(out_disc_rtn_yll_all_pop_u5) <- NYO
+  dim(out_yll_unvacc_redist_u5) <- NYO
+  dim(out_disc_yll_unvacc_redist_u5) <- NYO
+  
   
   yll_sero[1:N_age,1:3,1:4] <- sdisease_sero[i,j,k]*cfr*life_expec[i]
   yll_sero_vacc_pri_age[1:N_age,1:4] <- sdisease_sero_vacc_pri[i,j]*cfr*life_expec[i]
   disc_yll_all[1:N_age,1:3] <- sum(sdisease_sero[i,j,])*cfr*(1.0-1.0/(disc_fact^life_expec[i]))/log(disc_fact)
   
+  yll_all_pop_age[1:N_age] <- sum(yll_sero[i,,])
+  yll_all_vacc_age[1:N_age] <- sum(yll_sero[i,,2:3])
+  yll_all_vacc_age_u5[1:5] <- yll_all_vacc_age[i]
+  yll_all_vacc_age_u5[6:N_age] <- 0
   yll_sero_unvacc[1:4] <- sum(yll_sero[,1,i])
   yll_sero_vacc[1:4] <- sum(yll_sero[,2,i])+sum(yll_sero[,3,i])
-  yll_sero_pop[1:4] <- yll_sero_unvacc[i]+yll_sero_vacc[i]
   yll_sero_vacc_pri[1:4] <- sum(yll_sero_vacc_pri_age[,i])
   yll_sero_vacc_secp[1:4] <- yll_sero_vacc[i]-yll_sero_vacc_neg[i]
   yll_sero_vacc_neg[1:4] <- sum(yll_sero[,3,i])
   yll_sero_vacc_pos[1:4] <- sum(yll_sero[,2,i])
-  yll_all_pop <- sum(yll_sero_pop)
-  yll_all_vacc <- sum(yll_sero_vacc)
+  yll_all_pop <- sum(yll_all_pop_age)
+  yll_all_vacc <- sum(yll_all_vacc_age)
   yll_all_unvacc <- sum(yll_sero_unvacc)
-  yll_all_vacc_neg <- sum(yll_sero_vacc_neg)  
-  yll_all_vacc_pos <- sum(yll_sero_vacc_pos)
-  yll_all_vacc_pri <- sum(yll_sero_vacc_pri)  
-  yll_all_vacc_secp <- sum(yll_sero_vacc_secp)
-  disc_yll_all_pop <- cum_disc*sum(disc_yll_all)
-  disc_yll_all_vacc <- cum_disc*(sum(disc_yll_all[,2])+sum(disc_yll_all[,3]))
-
+  disc_yll_all_vacc <- sum(disc_yll_all[,2:3])*cum_disc
+  disc_yll_all_unvacc <- sum(disc_yll_all[,1])*cum_disc
+  disc_yll_all_pop <- disc_yll_all_vacc+disc_yll_all_unvacc
+  
+  yll_all_unvacc_u5 <- sum(yll_sero[1:5,1,])
+  disc_yll_all_unvacc_u5 <- sum(disc_yll_all[1:5,1])*cum_disc
+  
+  
+  #track vca cohort
+  rtn_yll_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else yll_all_vacc_age[as.integer(intYPV+vca)-i]
+  cmp_yll_all_pop <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(yll_all_vacc_age[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount yll in cohort from vacc year on
+  disc_rtn_yll_all_pop[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else sum(disc_yll_all[as.integer(intYPV+vca)-i,2:3])*cum_disc
+  disc_cmp_yll_all_pop <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(disc_yll_all[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1),2:3])*cum_disc
+  
+  #track vca cohort
+  rtn_yll_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else yll_all_vacc_age_u5[as.integer(intYPV+vca)-i]
+  cmp_yll_all_pop_u5 <- if(TIME<=vacc_cu_rndtime||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else sum(yll_all_vacc_age_u5[as.integer(intYPVC+vacc_cu_minage+1):as.integer(intYPVC+vacc_cu_maxage+1)])
+  # discount yll in cohort from vacc year on
+  disc_rtn_yll_all_pop_u5[1:NYO] <- if((YEARS_POST_VACC<(i-1))||((YEARS_POST_VACC-i+1)>=gavi_vacc_cohort_years)) 0 else rtn_yll_all_pop_u5[i]*cum_disc
+  disc_cmp_yll_all_pop_u5 <- if((TIME<=vacc_cu_rndtime)||((YEAR-vcu_year)>=gavi_vacc_cohort_years)) 0 else cmp_yll_all_pop_u5*cum_disc
+  
   
   initial(out_yll_all_pop[1:NYO]) <-0
-  initial(out_yll_sero_pop[1:NYO,1:4]) <-0
-  initial(out_yll_all_unvacc[1:NYO]) <-0
-  initial(out_yll_sero_unvacc[1:NYO,1:4]) <-0
   initial(out_yll_all_vacc[1:NYO]) <-0
-  initial(out_yll_all_vacc_neg[1:NYO]) <-0
-  initial(out_yll_all_vacc_pos[1:NYO]) <-0
-  initial(out_yll_all_vacc_pri[1:NYO]) <-0
-  initial(out_yll_all_vacc_secp[1:NYO]) <-0
+  initial(out_yll_sero_unvacc[1:NYO,1:4]) <-0
+  initial(out_yll_all_unvacc[1:NYO]) <-0
   initial(out_yll_sero_vacc[1:NYO,1:4]) <-0
   initial(out_yll_sero_vacc_neg[1:NYO,1:4]) <-0
   initial(out_yll_sero_vacc_pos[1:NYO,1:4]) <-0
   initial(out_yll_sero_vacc_pri[1:NYO,1:4]) <-0
   initial(out_yll_sero_vacc_secp[1:NYO,1:4]) <-0
-  initial(out_disc_yll_all_pop[1:NYO]) <-0
-  initial(out_disc_yll_all_vacc[1:NYO]) <-0
+  initial(out_disc_yll_all_pop[1:NYO]) <- 0
+  initial(out_disc_yll_all_vacc[1:NYO]) <- 0
+  initial(out_disc_yll_all_unvacc[1:NYOF]) <- 0
+  
+  initial(out_rtn_yll_all_pop[1:NYO]) <-0
+  initial(out_cmp_yll_all_pop) <-0
+  initial(out_disc_rtn_yll_all_pop[1:NYO]) <-0
+  initial(out_disc_cmp_yll_all_pop) <-0
+  initial(out_yll_unvacc_redist[1:NYO]) <-0
+  initial(out_disc_yll_unvacc_redist[1:NYO]) <-0
+  
+  initial(out_yll_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_disc_yll_all_unvacc_u5[1:NYOF]) <- 0
+  initial(out_rtn_yll_all_pop_u5[1:NYO]) <-0
+  initial(out_cmp_yll_all_pop_u5) <-0
+  initial(out_disc_rtn_yll_all_pop_u5[1:NYO]) <-0
+  initial(out_disc_cmp_yll_all_pop_u5) <-0
+  initial(out_yll_unvacc_redist_u5[1:NYO]) <-0
+  initial(out_disc_yll_unvacc_redist_u5[1:NYO]) <-0
   
   update(out_yll_all_pop[1:NYO]) <- out_yll_all_pop[i] + (if(out_update_switch[i]==0) 0 else yll_all_pop)
-  update(out_yll_sero_pop[1:NYO,1:4]) <- out_yll_sero_pop[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_pop[j])
-  update(out_yll_all_unvacc[1:NYO]) <- out_yll_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else yll_all_unvacc)
   update(out_yll_sero_unvacc[1:NYO,1:4]) <- out_yll_sero_unvacc[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_unvacc[j])
+  update(out_yll_all_unvacc[1:NYOF]) <- out_yll_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else yll_all_unvacc)
   update(out_yll_all_vacc[1:NYO]) <- out_yll_all_vacc[i] + (if(out_update_switch[i]==0) 0 else yll_all_vacc)
-  update(out_yll_all_vacc_neg[1:NYO]) <- out_yll_all_vacc_neg[i] + (if(out_update_switch[i]==0) 0 else yll_all_vacc_neg)
-  update(out_yll_all_vacc_pos[1:NYO]) <- out_yll_all_vacc_pos[i] + (if(out_update_switch[i]==0) 0 else yll_all_vacc_pos)
-  update(out_yll_all_vacc_pri[1:NYO]) <- out_yll_all_vacc_pri[i] + (if(out_update_switch[i]==0) 0 else yll_all_vacc_pri)
-  update(out_yll_all_vacc_secp[1:NYO]) <- out_yll_all_vacc_secp[i] + (if(out_update_switch[i]==0) 0 else yll_all_vacc_secp)
   update(out_yll_sero_vacc[1:NYO,1:4]) <- out_yll_sero_vacc[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_vacc[j])
   update(out_yll_sero_vacc_neg[1:NYO,1:4]) <- out_yll_sero_vacc_neg[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_vacc_neg[j])
   update(out_yll_sero_vacc_pos[1:NYO,1:4]) <- out_yll_sero_vacc_pos[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_vacc_pos[j])
@@ -1064,11 +1276,52 @@
   update(out_yll_sero_vacc_secp[1:NYO,1:4]) <- out_yll_sero_vacc_secp[i,j] + (if(out_update_switch[i]==0) 0 else yll_sero_vacc_secp[j])
   update(out_disc_yll_all_pop[1:NYO]) <- out_disc_yll_all_pop[i] + (if(out_update_switch[i]==0) 0 else disc_yll_all_pop)
   update(out_disc_yll_all_vacc[1:NYO]) <- out_disc_yll_all_vacc[i] + (if(out_update_switch[i]==0) 0 else disc_yll_all_vacc)
+  update(out_disc_yll_all_unvacc[1:NYOF]) <- out_disc_yll_all_unvacc[i] + (if(out_update_switch[i]==0) 0 else disc_yll_all_unvacc)
+  
+  update(out_rtn_yll_all_pop[1:NYO]) <- out_rtn_yll_all_pop[i] + rtn_yll_all_pop[i]
+  update(out_cmp_yll_all_pop) <- out_cmp_yll_all_pop + cmp_yll_all_pop
+  update(out_disc_rtn_yll_all_pop[1:NYO]) <- out_disc_rtn_yll_all_pop[i] + disc_rtn_yll_all_pop[i]
+  update(out_disc_cmp_yll_all_pop) <- out_disc_cmp_yll_all_pop + disc_cmp_yll_all_pop
+  
+  yll_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_yll_all_unvacc[j] else 0
+  yll_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(yll_unvacc_redist_m[i,]) else 0
+  disc_yll_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_yll_all_unvacc[j] else 0
+  disc_yll_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_yll_unvacc_redist_m[i,]) else 0
+  
+  update(out_yll_unvacc_redist[1:NYO]) <- out_yll_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) yll_unvacc_redist[i] else 0)
+  update(out_disc_yll_unvacc_redist[1:NYO]) <- out_disc_yll_unvacc_redist[i] + (if(YEARS_POST_VACC==NYOF) disc_yll_unvacc_redist[i] else 0)
+  
+  update(out_rtn_yll_all_pop_u5[1:NYO]) <- out_rtn_yll_all_pop_u5[i] + rtn_yll_all_pop_u5[i]
+  update(out_cmp_yll_all_pop_u5) <- out_cmp_yll_all_pop_u5 + cmp_yll_all_pop_u5
+  update(out_disc_rtn_yll_all_pop_u5[1:NYO]) <- out_disc_rtn_yll_all_pop_u5[i] + disc_rtn_yll_all_pop_u5[i]
+  update(out_disc_cmp_yll_all_pop_u5) <- out_disc_cmp_yll_all_pop_u5 + disc_cmp_yll_all_pop_u5
+  update(out_yll_all_unvacc_u5[1:NYOF]) <- out_yll_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else yll_all_unvacc_u5)
+  update(out_disc_yll_all_unvacc_u5[1:NYOF]) <- out_disc_yll_all_unvacc_u5[i] + (if(out_update_switch[i]==0) 0 else disc_yll_all_unvacc_u5)
+  
+  yll_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_yll_all_unvacc_u5[j] else 0
+  yll_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(yll_unvacc_redist_m_u5[i,]) else 0
+  disc_yll_unvacc_redist_m_u5[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_yll_all_unvacc_u5[j] else 0
+  disc_yll_unvacc_redist_u5[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_yll_unvacc_redist_m_u5[i,]) else 0
+  
+  update(out_yll_unvacc_redist_u5[1:NYO]) <- out_yll_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) yll_unvacc_redist_u5[i] else 0)
+  update(out_disc_yll_unvacc_redist_u5[1:NYO]) <- out_disc_yll_unvacc_redist_u5[i] + (if(YEARS_POST_VACC==NYOF) disc_yll_unvacc_redist_u5[i] else 0)
+  
   
   
   ## count vaccinated
-  num_child_vacc_age[1:N_age] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i == vacc_child_age)) (vacc_child_coverage) else 0)*Ntotal_nv[i]*agert[i]
-  num_child_vacc_age_neg[1:N_age] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i == vacc_child_age)) (vacc_child_coverage) else 0)*Ntotal_nvS[i]*agert[i]
+  
+  dim(out_nvacc_all_pop) <- NYOF
+  dim(out_nvacc_all_neg) <- NYO
+  dim(out_nvacc_all_pos) <- NYO
+  dim(out_disc_nvacc_all_pop) <- NYO
+  
+  dim(num_child_vacc_age) <- N_age
+  dim(num_cu_vacc_age) <- N_age
+  dim(num_child_vacc_age_neg) <- N_age
+  dim(num_cu_vacc_age_neg) <- N_age
+  
+  num_child_vacc_age[1:N_age] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i == vca)) (vacc_child_coverage) else 0)*Ntotal_nv[i]*agert[i]
+  num_child_vacc_age_neg[1:N_age] <- (if((YEARS_POST_VACC>=0) && (YEAR<vacc_child_stoptime) && (i == vca)) (vacc_child_coverage) else 0)*Ntotal_nvS[i]*agert[i]
   num_cu_vacc_age[1:N_age] <- (if((TIME == vacc_cu_rndtime) && (i>=vacc_cu_minage) && (i<=vacc_cu_maxage)) (vacc_cu_coverage*vacc_cu_age_weight[i]) else 0)*Ntotal_nv[i]
   num_cu_vacc_age_neg[1:N_age] <- (if((TIME == vacc_cu_rndtime) && (i>=vacc_cu_minage) && (i<=vacc_cu_maxage)) (vacc_cu_coverage*vacc_cu_age_weight[i]) else 0)*Ntotal_nvS[i]
   
@@ -1077,12 +1330,12 @@
   num_child_vacc_sum_pos <- num_child_vacc_sum-num_child_vacc_sum_neg
   num_child_vacc_per100k <- num_child_vacc_sum*1e5/NT
   
-  initial(out_nvacc_all_pop[1:NYO]) <-0
+  initial(out_nvacc_all_pop[1:NYOF]) <-0
   initial(out_nvacc_all_neg[1:NYO]) <-0
   initial(out_nvacc_all_pos[1:NYO]) <-0
   initial(out_disc_nvacc_all_pop[1:NYO]) <-0
   
-  update(out_nvacc_all_pop[1:NYO]) <- out_nvacc_all_pop[i] + (if(out_update_switch[i]==0) 0 else num_child_vacc_sum)
+  update(out_nvacc_all_pop[1:NYOF]) <- out_nvacc_all_pop[i] + (if(out_update_switch[i]==0) 0 else num_child_vacc_sum)
   update(out_nvacc_all_neg[1:NYO]) <- out_nvacc_all_neg[i] + (if(out_update_switch[i]==0) 0 else num_child_vacc_sum_neg)
   update(out_nvacc_all_pos[1:NYO]) <- out_nvacc_all_pos[i] + (if(out_update_switch[i]==0) 0 else num_child_vacc_sum_pos)
   update(out_disc_nvacc_all_pop[1:NYO]) <- out_disc_nvacc_all_pop[i] + (if(out_update_switch[i]==0) 0 else num_child_vacc_sum*cum_disc_vacc)
@@ -1877,7 +2130,7 @@
   dim(pop_size_d) <-  29
   dim(births_d) <- c(151,2)
   dim(life_expec_d) <-  c(151,29)
-  dim(coverage_d) <- c(77,2)
+  dim(coverage_d) <- c(77,3)
   
   dim(nc0) <- c(4,3)
   dim(hs) <- 3
@@ -1934,107 +2187,6 @@
   dim(RR_inf) <- c(4,3,N_age)  
   dim(RR_dis) <- c(4,3,N_age)  
   dim(RR_sdis) <- c(4,3,N_age)  
-  
-  dim(out_update_switch) <- NYO
-  
-  dim(VE_seroneg) <- NYO
-  dim(VE_seropos_mono) <- NYO
-  dim(VE_seropos_multi) <- NYO
-  
-  dim(out_prop_seroneg_at_9) <- NYO
-  dim(out_prop_seroneg_at_vca) <- NYO
-  
-  dim(disease_sero) <- c(N_age, 3, 4)
-  dim(disease_sero_vacc_pri) <- c(N_age, 4)
-  dim(dis_sero_unvacc) <- 4
-  dim(dis_sero_vacc) <- 4
-  dim(dis_sero_pop) <- 4
-  dim(dis_sero_vacc_neg) <- 4
-  dim(dis_sero_vacc_pos) <- 4
-  dim(dis_sero_vacc_pri) <- 4
-  dim(dis_sero_vacc_secp) <- 4
-  
-  dim(out_dis_all_pop) <- NYO
-  dim(out_dis_sero_pop) <- c(NYO,4)
-  dim(out_dis_all_unvacc) <- NYO
-  dim(out_dis_sero_unvacc) <- c(NYO,4)
-  dim(out_dis_all_vacc) <- NYO
-  dim(out_dis_all_vacc_neg) <- NYO
-  dim(out_dis_all_vacc_pos) <- NYO
-  dim(out_dis_all_vacc_pri) <- NYO
-  dim(out_dis_all_vacc_secp) <- NYO
-  dim(out_dis_sero_vacc) <- c(NYO,4)
-  dim(out_dis_sero_vacc_neg) <- c(NYO,4)
-  dim(out_dis_sero_vacc_pos) <- c(NYO,4)
-  dim(out_dis_sero_vacc_pri) <- c(NYO,4)
-  dim(out_dis_sero_vacc_secp) <- c(NYO,4)
-  dim(out_disc_dis_all_pop) <- NYO
-  dim(out_disc_dis_all_vacc) <- NYO
-  
-  dim(sdisease_sero) <- c(N_age, 3, 4)
-  dim(sdisease_sero_vacc_pri) <- c(N_age, 4)
-  dim(sdis_sero_unvacc) <- 4
-  dim(sdis_sero_vacc) <- 4
-  dim(sdis_sero_pop) <- 4
-  dim(sdis_sero_vacc_neg) <- 4
-  dim(sdis_sero_vacc_pos) <- 4
-  dim(sdis_sero_vacc_pri) <- 4
-  dim(sdis_sero_vacc_secp) <- 4
-  
-  dim(out_sdis_all_pop) <- NYO
-  dim(out_sdis_sero_pop) <- c(NYO,4)
-  dim(out_sdis_all_unvacc) <- NYO
-  dim(out_sdis_sero_unvacc) <- c(NYO,4)
-  dim(out_sdis_all_vacc) <- NYO
-  dim(out_sdis_all_vacc_neg) <- NYO
-  dim(out_sdis_all_vacc_pos) <- NYO
-  dim(out_sdis_all_vacc_pri) <- NYO
-  dim(out_sdis_all_vacc_secp) <- NYO
-  dim(out_sdis_sero_vacc) <- c(NYO,4)
-  dim(out_sdis_sero_vacc_neg) <- c(NYO,4)
-  dim(out_sdis_sero_vacc_pos) <- c(NYO,4)
-  dim(out_sdis_sero_vacc_pri) <- c(NYO,4)
-  dim(out_sdis_sero_vacc_secp) <- c(NYO,4)
-  dim(out_disc_sdis_all_pop) <- NYO
-  dim(out_disc_sdis_all_vacc) <- NYO
-  
-  dim(yll_sero) <- c(N_age, 3, 4)
-  dim(yll_sero_vacc_pri_age) <- c(N_age, 4)
-  dim(disc_yll_all) <- c(N_age, 3)
-  dim(yll_sero_unvacc) <- 4
-  dim(yll_sero_vacc) <- 4
-  dim(yll_sero_pop) <- 4
-  dim(yll_sero_vacc_neg) <- 4
-  dim(yll_sero_vacc_pos) <- 4
-  dim(yll_sero_vacc_pri) <- 4
-  dim(yll_sero_vacc_secp) <- 4
-  
-  dim(out_yll_all_pop) <- NYO
-  dim(out_yll_sero_pop) <- c(NYO,4)
-  dim(out_yll_all_unvacc) <- NYO
-  dim(out_yll_sero_unvacc) <- c(NYO,4)
-  dim(out_yll_all_vacc) <- NYO
-  dim(out_yll_all_vacc_neg) <- NYO
-  dim(out_yll_all_vacc_pos) <- NYO
-  dim(out_yll_all_vacc_pri) <- NYO
-  dim(out_yll_all_vacc_secp) <- NYO
-  dim(out_yll_sero_vacc) <- c(NYO,4)
-  dim(out_yll_sero_vacc_neg) <- c(NYO,4)
-  dim(out_yll_sero_vacc_pos) <- c(NYO,4)
-  dim(out_yll_sero_vacc_pri) <- c(NYO,4)
-  dim(out_yll_sero_vacc_secp) <- c(NYO,4)
-  dim(out_disc_yll_all_pop) <- NYO
-  dim(out_disc_yll_all_vacc) <- NYO
-  
-  dim(out_nvacc_all_pop) <- NYO
-  dim(out_nvacc_all_neg) <- NYO
-  dim(out_nvacc_all_pos) <- NYO
-  dim(out_disc_nvacc_all_pop) <- NYO
-  
-  dim(num_child_vacc_age) <- N_age
-  dim(num_cu_vacc_age) <- N_age
-  dim(num_child_vacc_age_neg) <- N_age
-  dim(num_cu_vacc_age_neg) <- N_age
   
   dim(vacc_ct) <- N_age
   dim(time_from_last_dose_base) <- N_age
