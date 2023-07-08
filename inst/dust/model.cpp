@@ -3039,7 +3039,7 @@ public:
     for (int i = 1; i <= shared->N_age; ++i) {
       internal.cur_age_rate[i - 1] = shared->age_rate_d[shared->dim_age_rate_d_1 * (1 + i - 1) + static_cast<int>(year_row) - 1];
     }
-    for (int i = 1; i <= 28; ++i) {
+    for (int i = 1; i <= 40; ++i) {
       internal.death[i - 1] = shared->age_removal_d[shared->dim_age_removal_d_1 * (1 + i - 1) + static_cast<int>(year_row) - 1];
     }
     {
@@ -7647,9 +7647,9 @@ dust::pars_type<model> dust_pars<model>(cpp11::list user) {
   model::internal_type internal;
   shared->Acrit = 3;
   shared->dim_age_rate_d_1 = 151;
-  shared->dim_age_rate_d_2 = 29;
+  shared->dim_age_rate_d_2 = 41;
   shared->dim_age_removal_d_1 = 151;
-  shared->dim_age_removal_d_2 = 29;
+  shared->dim_age_removal_d_2 = 41;
   shared->dim_births_d_1 = 151;
   shared->dim_births_d_2 = 2;
   shared->dim_coverage_d_1 = 77;
@@ -7671,7 +7671,7 @@ dust::pars_type<model> dust_pars<model>(cpp11::list user) {
   shared->dim_L_sdis_1 = 4;
   shared->dim_L_sdis_2 = 3;
   shared->dim_life_expec_d_1 = 151;
-  shared->dim_life_expec_d_2 = 29;
+  shared->dim_life_expec_d_2 = 41;
   shared->dim_nc_cu_1 = 4;
   shared->dim_nc_cu_2 = 3;
   shared->dim_nc0_1 = 4;
@@ -7687,7 +7687,7 @@ dust::pars_type<model> dust_pars<model>(cpp11::list user) {
   shared->dim_phi_scale = 4;
   shared->dim_phi_sec = 4;
   shared->dim_phi_tert = 4;
-  shared->dim_pop_size_d = 29;
+  shared->dim_pop_size_d = 41;
   shared->dim_sdis_pri = 4;
   shared->dim_sdis_quart = 4;
   shared->dim_sdis_sec = 4;
