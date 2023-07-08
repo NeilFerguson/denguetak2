@@ -1,3 +1,3 @@
-#' @useDynLib denguetak, .registration = TRUE
+#' @useDynLib denguetak2, .registration = TRUE
 #' @export model
 NULL
