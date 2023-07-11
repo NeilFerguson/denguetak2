@@ -3079,7 +3079,7 @@ public:
     }
     for (int i = 1; i <= shared->NYOF; ++i) {
       for (int j = 1; j <= shared->NYOF; ++j) {
-        internal.wt_mat[i - 1 + shared->dim_wt_mat_1 * (j - 1)] = (YEARS_POST_VACC != shared->NYOF ? 0 : ((i > j) || ((j - i) >= shared->gavi_vacc_cohort_years) ? 0 : (dust::math::pow(wt, (j - i))) * (out_nvacc_all_pop[i - 1] + static_cast<real_type>(0.001))));
+        internal.wt_mat[i - 1 + shared->dim_wt_mat_1 * (j - 1)] = ((YEARS_POST_VACC != shared->NYOF) || (i > j) || ((j - i) >= shared->gavi_vacc_cohort_years) ? 0 : (dust::math::pow(wt, (j - i))) * out_nvacc_all_pop[i - 1]);
       }
     }
     real_type youngest_cu_age = (shared->vacc_cu_minage <= shared->N_age ? shared->ageb[static_cast<int>(shared->vacc_cu_minage + 1) - 1] + dust::math::floor(YEAR - shared->vcu_year) : 1000);
@@ -3154,7 +3154,7 @@ public:
     }
     for (int i = 1; i <= shared->NYO; ++i) {
       for (int j = 1; j <= shared->NYOF; ++j) {
-        internal.norm_wt_mat[i - 1 + shared->dim_norm_wt_mat_1 * (j - 1)] = (YEARS_POST_VACC == shared->NYOF ? internal.wt_mat[shared->dim_wt_mat_1 * (j - 1) + i - 1] / (real_type) (internal.sum_wt_mat[j - 1] + static_cast<real_type>(1e-10)) : 0);
+        internal.norm_wt_mat[i - 1 + shared->dim_norm_wt_mat_1 * (j - 1)] = ((YEARS_POST_VACC == shared->NYOF) && (internal.sum_wt_mat[j - 1] > 0) ? internal.wt_mat[shared->dim_wt_mat_1 * (j - 1) + i - 1] / (real_type) internal.sum_wt_mat[j - 1] : 0);
       }
     }
     real_type NTvE = NTv - NTvS;

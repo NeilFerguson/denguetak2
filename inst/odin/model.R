@@ -764,9 +764,9 @@
   dim(norm_wt_mat) <- c(NYO,NYOF)
   dim(sum_wt_mat) <- NYOF
   
-  wt_mat[1:NYOF,1:NYOF] <- if(YEARS_POST_VACC!=NYOF) 0 else if((i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else (wt^(j-i))*(out_nvacc_all_pop[i]+1e-3)
+  wt_mat[1:NYOF,1:NYOF] <- if((YEARS_POST_VACC!=NYOF)||(i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else (wt^(j-i))*out_nvacc_all_pop[i]
   sum_wt_mat[1:NYOF] <- if(YEARS_POST_VACC==NYOF) sum(wt_mat[,i]) else 0
-  norm_wt_mat[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) wt_mat[i,j]/(sum_wt_mat[j]+1e-10) else 0
+  norm_wt_mat[1:NYO,1:NYOF] <- if((YEARS_POST_VACC==NYOF)&&(sum_wt_mat[j]>0)) wt_mat[i,j]/sum_wt_mat[j] else 0
   
   intYPV <- floor(YEARS_POST_VACC)+2 # add 2 since want age group vca+1
   intYPVC <- floor(YEAR-vcu_year) # add 2 since want age group vca+1  
