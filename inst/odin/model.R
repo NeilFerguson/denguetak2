@@ -870,7 +870,7 @@
   disease_sero_vacc_pri[1:N_age,4] <- dis_pri[4]*RR_dis[4,1,i]*(inf_4[i,2]+inf_4[i,3])
   
   dis_all_pop_age[1:N_age] <- sum(disease_sero[i,,])
-  dis_all_vacc_age[1:N_age] <- sum(disease_sero[i,,2:3])
+  dis_all_vacc_age[1:N_age] <- sum(disease_sero[i,2:3,])
   dis_all_vacc_age_u5[1:5] <- dis_all_vacc_age[i]
   dis_all_vacc_age_u5[6:N_age] <- 0
   dis_sero_unvacc[1:4] <- sum(disease_sero[,1,i])
@@ -1039,7 +1039,7 @@
   sdisease_sero_vacc_pri[1:N_age,4] <- sdis_pri[4]*RR_dis[4,1,i]*(inf_4[i,2]+inf_4[i,3])
   
   sdis_all_pop_age[1:N_age] <- sum(sdisease_sero[i,,])
-  sdis_all_vacc_age[1:N_age] <- sum(sdisease_sero[i,,2:3])
+  sdis_all_vacc_age[1:N_age] <- sum(sdisease_sero[i,2:3,])
   sdis_all_vacc_age_u5[1:5] <- sdis_all_vacc_age[i]
   sdis_all_vacc_age_u5[6:N_age] <- 0
   sdis_sero_unvacc[1:4] <- sum(sdisease_sero[,1,i])
@@ -1201,7 +1201,7 @@
   disc_yll_all[1:N_age,1:3] <- sum(sdisease_sero[i,j,])*cfr*(1.0-1.0/(disc_fact^life_expec[i]))/log(disc_fact)
   
   yll_all_pop_age[1:N_age] <- sum(yll_sero[i,,])
-  yll_all_vacc_age[1:N_age] <- sum(yll_sero[i,,2:3])
+  yll_all_vacc_age[1:N_age] <- sum(yll_sero[i,2:3,])
   yll_all_vacc_age_u5[1:5] <- yll_all_vacc_age[i]
   yll_all_vacc_age_u5[6:N_age] <- 0
   yll_sero_unvacc[1:4] <- sum(yll_sero[,1,i])

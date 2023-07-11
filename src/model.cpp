@@ -6510,7 +6510,7 @@ public:
     }
     real_type dis_all_unvacc_u5 = odin_sum3<real_type>(internal.disease_sero.data(), 0, 5, 0, 1, 0, shared->dim_disease_sero_3, shared->dim_disease_sero_1, shared->dim_disease_sero_12);
     for (int i = 1; i <= shared->N_age; ++i) {
-      internal.dis_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.disease_sero.data(), i - 1, i, 0, shared->dim_disease_sero_2, 1, 3, shared->dim_disease_sero_1, shared->dim_disease_sero_12);
+      internal.dis_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.disease_sero.data(), i - 1, i, 1, 3, 0, shared->dim_disease_sero_3, shared->dim_disease_sero_1, shared->dim_disease_sero_12);
     }
     for (int i = 1; i <= 4; ++i) {
       internal.dis_sero_unvacc[i - 1] = odin_sum3<real_type>(internal.disease_sero.data(), 0, shared->dim_disease_sero_1, 0, 1, i - 1, i, shared->dim_disease_sero_1, shared->dim_disease_sero_12);
@@ -6612,7 +6612,7 @@ public:
     }
     real_type sdis_all_unvacc_u5 = odin_sum3<real_type>(internal.sdisease_sero.data(), 0, 5, 0, 1, 0, shared->dim_sdisease_sero_3, shared->dim_sdisease_sero_1, shared->dim_sdisease_sero_12);
     for (int i = 1; i <= shared->N_age; ++i) {
-      internal.sdis_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.sdisease_sero.data(), i - 1, i, 0, shared->dim_sdisease_sero_2, 1, 3, shared->dim_sdisease_sero_1, shared->dim_sdisease_sero_12);
+      internal.sdis_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.sdisease_sero.data(), i - 1, i, 1, 3, 0, shared->dim_sdisease_sero_3, shared->dim_sdisease_sero_1, shared->dim_sdisease_sero_12);
     }
     for (int i = 1; i <= 4; ++i) {
       internal.sdis_sero_unvacc[i - 1] = odin_sum3<real_type>(internal.sdisease_sero.data(), 0, shared->dim_sdisease_sero_1, 0, 1, i - 1, i, shared->dim_sdisease_sero_1, shared->dim_sdisease_sero_12);
@@ -7141,7 +7141,7 @@ public:
     }
     real_type yll_all_unvacc_u5 = odin_sum3<real_type>(internal.yll_sero.data(), 0, 5, 0, 1, 0, shared->dim_yll_sero_3, shared->dim_yll_sero_1, shared->dim_yll_sero_12);
     for (int i = 1; i <= shared->N_age; ++i) {
-      internal.yll_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.yll_sero.data(), i - 1, i, 0, shared->dim_yll_sero_2, 1, 3, shared->dim_yll_sero_1, shared->dim_yll_sero_12);
+      internal.yll_all_vacc_age[i - 1] = odin_sum3<real_type>(internal.yll_sero.data(), i - 1, i, 1, 3, 0, shared->dim_yll_sero_3, shared->dim_yll_sero_1, shared->dim_yll_sero_12);
     }
     for (int i = 1; i <= 4; ++i) {
       internal.yll_sero_unvacc[i - 1] = odin_sum3<real_type>(internal.yll_sero.data(), 0, shared->dim_yll_sero_1, 0, 1, i - 1, i, shared->dim_yll_sero_1, shared->dim_yll_sero_12);
