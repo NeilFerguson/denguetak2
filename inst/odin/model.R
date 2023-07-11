@@ -759,12 +759,12 @@
   dim(out_update_switch) <- NYOF
   out_update_switch[1:NYOF] <- if(YEARS_POST_VACC>=(i-1) && YEARS_POST_VACC<i) 1 else 0
 
-  wt <- if(YEARS_POST_VACC==NYOF) exp(-1/gavi_vacc_attrib_years) else 0
+  wt <- if(YEARS_POST_VACC==NYOF) 1 else 0 # exp(-1/gavi_vacc_attrib_years) else 0
   dim(wt_mat) <- c(NYO,NYOF)
   dim(norm_wt_mat) <- c(NYO,NYOF)
   dim(sum_wt_mat) <- NYOF
   
-  wt_mat[1:NYOF,1:NYOF] <- if((YEARS_POST_VACC!=NYOF)||(i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else wt*out_nvacc_all_pop[i]
+  wt_mat[1:NYOF,1:NYOF] <- if((YEARS_POST_VACC!=NYOF)||(i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else wt*(if(out_nvacc_all_pop[i]>0) 1 else 0)
   sum_wt_mat[1:NYOF] <- if(YEARS_POST_VACC==NYOF) sum(wt_mat[,i]) else 0
   norm_wt_mat[1:NYO,1:NYOF] <- if((YEARS_POST_VACC==NYOF)&&(sum_wt_mat[j]>0)) wt_mat[i,j]/sum_wt_mat[j] else 0
   
