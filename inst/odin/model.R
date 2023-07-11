@@ -764,12 +764,12 @@
   dim(norm_wt_mat) <- c(NYO,NYOF)
   dim(sum_wt_mat) <- NYOF
   
-  wt_mat[1:NYOF,1:NYOF] <- if((YEARS_POST_VACC!=NYOF)||(i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else (wt^(j-i))*out_nvacc_all_pop[i]
+  wt_mat[1:NYOF,1:NYOF] <- if((YEARS_POST_VACC!=NYOF)||(i>j)||((j-i)>=gavi_vacc_cohort_years)) 0 else wt*out_nvacc_all_pop[i]
   sum_wt_mat[1:NYOF] <- if(YEARS_POST_VACC==NYOF) sum(wt_mat[,i]) else 0
   norm_wt_mat[1:NYO,1:NYOF] <- if((YEARS_POST_VACC==NYOF)&&(sum_wt_mat[j]>0)) wt_mat[i,j]/sum_wt_mat[j] else 0
   
   intYPV <- floor(YEARS_POST_VACC)+2 # add 2 since want age group vca+1
-  intYPVC <- floor(YEAR-vcu_year) # add 2 since want age group vca+1  
+  intYPVC <- floor(YEAR-vcu_year)  
 
   ## VE over time
   dim(VE_seroneg) <- NYO
@@ -950,7 +950,7 @@
   update(out_disc_rtn_dis_all_pop[1:NYO]) <- out_disc_rtn_dis_all_pop[i] + disc_rtn_dis_all_pop[i]
   update(out_disc_cmp_dis_all_pop) <- out_disc_cmp_dis_all_pop + disc_cmp_dis_all_pop
   
-  dis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_dis_all_unvacc[j] else 0
+  dis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j] else 0 # *out_dis_all_unvacc[j] else 0
   dis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(dis_unvacc_redist_m[i,]) else 0
   disc_dis_unvacc_redist_m[1:NYO,1:NYOF] <- if(YEARS_POST_VACC==NYOF) norm_wt_mat[i,j]*out_disc_dis_all_unvacc[j] else 0
   disc_dis_unvacc_redist[1:NYO] <- if(YEARS_POST_VACC==NYOF) sum(disc_dis_unvacc_redist_m[i,]) else 0
