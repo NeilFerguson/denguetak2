@@ -3154,7 +3154,7 @@ public:
     }
     for (int i = 1; i <= shared->NYO; ++i) {
       for (int j = 1; j <= shared->NYOF; ++j) {
-        internal.norm_wt_mat[i - 1 + shared->dim_norm_wt_mat_1 * (j - 1)] = ((YEARS_POST_VACC == shared->NYOF) && (internal.sum_wt_mat[j - 1] > 0) ? internal.wt_mat[shared->dim_wt_mat_1 * (j - 1) + i - 1] / (real_type) internal.sum_wt_mat[j - 1] : 0);
+        internal.norm_wt_mat[i - 1 + shared->dim_norm_wt_mat_1 * (j - 1)] = ((YEARS_POST_VACC == shared->NYOF) && (internal.sum_wt_mat[j - 1] > 0) ? internal.wt_mat[shared->dim_wt_mat_1 * (j - 1) + i - 1] : 0);
       }
     }
     real_type NTvE = NTv - NTvS;
