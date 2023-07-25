@@ -3649,16 +3649,28 @@ public:
     real_type num_child_vacc_sum_pos = num_child_vacc_sum - num_child_vacc_sum_neg;
     real_type O_Mwt_S = (shared->DT * shared->delta + Mwt_FOI1 + Mwt_FOI2 + Mwt_FOI3 + Mwt_FOI4) * (Mwt_S);
     for (int i = 1; i <= 4; ++i) {
-      for (int j = 1; j <= 3; ++j) {
+      int j = 1;
+      for (int k = 1; k <= shared->N_age; ++k) {
+        internal.RR_inf_cu[i - 1 + shared->dim_RR_inf_cu_1 * (j - 1) + shared->dim_RR_inf_cu_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) && (shared->ageb[k - 1] >= youngest_cu_age) && (shared->ageb[k - 1] <= oldest_cu_age) ? 1 / (real_type) (1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) (12 * shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) : 1);
+      }
+    }
+    for (int i = 1; i <= 4; ++i) {
+      for (int j = 2; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
-          internal.RR_inf_cu[i - 1 + shared->dim_RR_inf_cu_1 * (j - 1) + shared->dim_RR_inf_cu_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) && (shared->ageb[k - 1] >= youngest_cu_age) && (shared->ageb[k - 1] <= oldest_cu_age) ? 1 / (real_type) dust::math::sqrt(1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1]), shared->ws[i - 1])) : 1);
+          internal.RR_inf_cu[i - 1 + shared->dim_RR_inf_cu_1 * (j - 1) + shared->dim_RR_inf_cu_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) && (shared->ageb[k - 1] >= youngest_cu_age) && (shared->ageb[k - 1] <= oldest_cu_age) ? 1 / (real_type) (1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) (3 * shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) : 1);
         }
       }
     }
     for (int i = 1; i <= 4; ++i) {
-      for (int j = 1; j <= 3; ++j) {
+      int j = 1;
+      for (int k = 1; k <= shared->N_age; ++k) {
+        internal.RR_inf_vc[i - 1 + shared->dim_RR_inf_vc_1 * (j - 1) + shared->dim_RR_inf_vc_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) ? 1 / (real_type) (1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (12 * shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) : 1);
+      }
+    }
+    for (int i = 1; i <= 4; ++i) {
+      for (int j = 2; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
-          internal.RR_inf_vc[i - 1 + shared->dim_RR_inf_vc_1 * (j - 1) + shared->dim_RR_inf_vc_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) ? 1 / (real_type) dust::math::sqrt(1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) : 1);
+          internal.RR_inf_vc[i - 1 + shared->dim_RR_inf_vc_1 * (j - 1) + shared->dim_RR_inf_vc_12 * (k - 1)] = ((shared->ZeroVE == 0) && (shared->DoVEInf) ? 1 / (real_type) (1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (3 * shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) : 1);
         }
       }
     }
@@ -3712,14 +3724,14 @@ public:
     for (int i = 1; i <= 4; ++i) {
       for (int j = 1; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
-          internal.RR_dis_cu[i - 1 + shared->dim_RR_dis_cu_1 * (j - 1) + shared->dim_RR_dis_cu_12 * (k - 1)] = ((shared->ZeroVE == 1) || (shared->ageb[k - 1] < youngest_cu_age) || (shared->ageb[k - 1] > oldest_cu_age) ? 1 : (shared->DoVEInf ? shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] * internal.RR_inf_cu[shared->dim_RR_inf_cu_12 * (k - 1) + shared->dim_RR_inf_cu_1 * (j - 1) + i - 1] : shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1]), shared->ws[i - 1]))));
+          internal.RR_dis_cu[i - 1 + shared->dim_RR_dis_cu_1 * (j - 1) + shared->dim_RR_dis_cu_12 * (k - 1)] = ((shared->ZeroVE == 1) || (shared->ageb[k - 1] < youngest_cu_age) || (shared->ageb[k - 1] > oldest_cu_age) ? 1 : shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) / (real_type) internal.RR_inf_cu[shared->dim_RR_inf_cu_12 * (k - 1) + shared->dim_RR_inf_cu_1 * (j - 1) + i - 1]);
         }
       }
     }
     for (int i = 1; i <= 4; ++i) {
       for (int j = 1; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
-          internal.RR_dis_vc[i - 1 + shared->dim_RR_dis_vc_1 * (j - 1) + shared->dim_RR_dis_vc_12 * (k - 1)] = (shared->ZeroVE == 1 ? 1 : (shared->DoVEInf ? shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] * internal.RR_inf_vc[shared->dim_RR_inf_vc_12 * (k - 1) + shared->dim_RR_inf_vc_1 * (j - 1) + i - 1] : shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1]))));
+          internal.RR_dis_vc[i - 1 + shared->dim_RR_dis_vc_1 * (j - 1) + shared->dim_RR_dis_vc_12 * (k - 1)] = (shared->ZeroVE == 1 ? 1 : (shared->L_dis[shared->dim_L_dis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_dis[shared->dim_nc50_dis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1]))) / (real_type) internal.RR_inf_vc[shared->dim_RR_inf_vc_12 * (k - 1) + shared->dim_RR_inf_vc_1 * (j - 1) + i - 1]);
         }
       }
     }
@@ -3727,6 +3739,20 @@ public:
       for (int j = 1; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
           internal.RR_inf[i - 1 + shared->dim_RR_inf_1 * (j - 1) + shared->dim_RR_inf_12 * (k - 1)] = internal.RR_inf_vc[shared->dim_RR_inf_vc_12 * (k - 1) + shared->dim_RR_inf_vc_1 * (j - 1) + i - 1] * internal.RR_inf_cu[shared->dim_RR_inf_cu_12 * (k - 1) + shared->dim_RR_inf_cu_1 * (j - 1) + i - 1];
+        }
+      }
+    }
+    for (int i = 1; i <= 4; ++i) {
+      for (int j = 1; j <= 3; ++j) {
+        for (int k = 1; k <= shared->N_age; ++k) {
+          internal.RR_sdis_cu[i - 1 + shared->dim_RR_sdis_cu_1 * (j - 1) + shared->dim_RR_sdis_cu_12 * (k - 1)] = ((shared->ZeroVE == 1) || (shared->ageb[k - 1] < youngest_cu_age) || (shared->ageb[k - 1] > oldest_cu_age) ? 1 : shared->L_sdis[shared->dim_L_sdis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc_cu[shared->dim_nc_cu_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_sdis[shared->dim_nc50_sdis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) / (real_type) internal.RR_inf_cu[shared->dim_RR_inf_cu_12 * (k - 1) + shared->dim_RR_inf_cu_1 * (j - 1) + i - 1]);
+        }
+      }
+    }
+    for (int i = 1; i <= 4; ++i) {
+      for (int j = 1; j <= 3; ++j) {
+        for (int k = 1; k <= shared->N_age; ++k) {
+          internal.RR_sdis_vc[i - 1 + shared->dim_RR_sdis_vc_1 * (j - 1) + shared->dim_RR_sdis_vc_12 * (k - 1)] = (shared->ZeroVE == 1 ? 1 : shared->L_sdis[shared->dim_L_sdis_1 * (j - 1) + i - 1] / (real_type) (1 + dust::math::pow((internal.nc[shared->dim_nc_12 * (k - 1) + shared->dim_nc_1 * (j - 1) + i - 1] / (real_type) (shared->nc50_sdis[shared->dim_nc50_sdis_1 * (j - 1) + i - 1] * shared->nc50_age[k - 1])), shared->ws[i - 1])) / (real_type) internal.RR_inf_vc[shared->dim_RR_inf_vc_12 * (k - 1) + shared->dim_RR_inf_vc_1 * (j - 1) + i - 1]);
         }
       }
     }
@@ -4069,6 +4095,13 @@ public:
       for (int j = 1; j <= 3; ++j) {
         for (int k = 1; k <= shared->N_age; ++k) {
           internal.RR_dis[i - 1 + shared->dim_RR_dis_1 * (j - 1) + shared->dim_RR_dis_12 * (k - 1)] = internal.RR_dis_vc[shared->dim_RR_dis_vc_12 * (k - 1) + shared->dim_RR_dis_vc_1 * (j - 1) + i - 1] * internal.RR_dis_cu[shared->dim_RR_dis_cu_12 * (k - 1) + shared->dim_RR_dis_cu_1 * (j - 1) + i - 1];
+        }
+      }
+    }
+    for (int i = 1; i <= 4; ++i) {
+      for (int j = 1; j <= 3; ++j) {
+        for (int k = 1; k <= shared->N_age; ++k) {
+          internal.RR_sdis[i - 1 + shared->dim_RR_sdis_1 * (j - 1) + shared->dim_RR_sdis_12 * (k - 1)] = internal.RR_sdis_vc[shared->dim_RR_sdis_vc_12 * (k - 1) + shared->dim_RR_sdis_vc_1 * (j - 1) + i - 1] * internal.RR_sdis_cu[shared->dim_RR_sdis_cu_12 * (k - 1) + shared->dim_RR_sdis_cu_1 * (j - 1) + i - 1];
         }
       }
     }
@@ -6131,7 +6164,7 @@ public:
     for (int i = 1; i <= shared->N_age; ++i) {
       for (int j = 2; j <= 3; ++j) {
         int k = 1;
-        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 0 + 0] * shared->sdis_pri[0] * internal.inf_1[shared->dim_inf_1_1 * (j - 1) + i - 1] + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 1 + 0] * shared->sdis_sec[0] * (internal.inf_21[shared->dim_inf_21_1 * (j - 1) + i - 1] + internal.inf_31[shared->dim_inf_31_1 * (j - 1) + i - 1] + internal.inf_41[shared->dim_inf_41_1 * (j - 1) + i - 1]) + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 2 + 0] * (shared->sdis_tert[0] * (internal.inf_231[shared->dim_inf_231_1 * (j - 1) + i - 1] + internal.inf_241[shared->dim_inf_241_1 * (j - 1) + i - 1] + internal.inf_341[shared->dim_inf_341_1 * (j - 1) + i - 1]) + shared->sdis_quart[0] * internal.inf_2341[shared->dim_inf_2341_1 * (j - 1) + i - 1]);
+        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 0 + 0] * shared->sdis_pri[0] * internal.inf_1[shared->dim_inf_1_1 * (j - 1) + i - 1] + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 1 + 0] * shared->sdis_sec[0] * (internal.inf_21[shared->dim_inf_21_1 * (j - 1) + i - 1] + internal.inf_31[shared->dim_inf_31_1 * (j - 1) + i - 1] + internal.inf_41[shared->dim_inf_41_1 * (j - 1) + i - 1]) + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 2 + 0] * (shared->sdis_tert[0] * (internal.inf_231[shared->dim_inf_231_1 * (j - 1) + i - 1] + internal.inf_241[shared->dim_inf_241_1 * (j - 1) + i - 1] + internal.inf_341[shared->dim_inf_341_1 * (j - 1) + i - 1]) + shared->sdis_quart[0] * internal.inf_2341[shared->dim_inf_2341_1 * (j - 1) + i - 1]);
       }
     }
     for (int i = 1; i <= shared->N_age; ++i) {
@@ -6142,7 +6175,7 @@ public:
     for (int i = 1; i <= shared->N_age; ++i) {
       for (int j = 2; j <= 3; ++j) {
         int k = 2;
-        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 0 + 1] * shared->sdis_pri[1] * internal.inf_2[shared->dim_inf_2_1 * (j - 1) + i - 1] + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 1 + 1] * shared->sdis_sec[1] * (internal.inf_12[shared->dim_inf_12_1 * (j - 1) + i - 1] + internal.inf_32[shared->dim_inf_32_1 * (j - 1) + i - 1] + internal.inf_42[shared->dim_inf_42_1 * (j - 1) + i - 1]) + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 2 + 1] * (shared->sdis_tert[1] * (internal.inf_132[shared->dim_inf_132_1 * (j - 1) + i - 1] + internal.inf_142[shared->dim_inf_142_1 * (j - 1) + i - 1] + internal.inf_342[shared->dim_inf_342_1 * (j - 1) + i - 1]) + shared->sdis_quart[1] * internal.inf_1342[shared->dim_inf_1342_1 * (j - 1) + i - 1]);
+        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 0 + 1] * shared->sdis_pri[1] * internal.inf_2[shared->dim_inf_2_1 * (j - 1) + i - 1] + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 1 + 1] * shared->sdis_sec[1] * (internal.inf_12[shared->dim_inf_12_1 * (j - 1) + i - 1] + internal.inf_32[shared->dim_inf_32_1 * (j - 1) + i - 1] + internal.inf_42[shared->dim_inf_42_1 * (j - 1) + i - 1]) + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 2 + 1] * (shared->sdis_tert[1] * (internal.inf_132[shared->dim_inf_132_1 * (j - 1) + i - 1] + internal.inf_142[shared->dim_inf_142_1 * (j - 1) + i - 1] + internal.inf_342[shared->dim_inf_342_1 * (j - 1) + i - 1]) + shared->sdis_quart[1] * internal.inf_1342[shared->dim_inf_1342_1 * (j - 1) + i - 1]);
       }
     }
     for (int i = 1; i <= shared->N_age; ++i) {
@@ -6153,7 +6186,7 @@ public:
     for (int i = 1; i <= shared->N_age; ++i) {
       for (int j = 2; j <= 3; ++j) {
         int k = 3;
-        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 0 + 2] * shared->sdis_pri[2] * internal.inf_3[shared->dim_inf_3_1 * (j - 1) + i - 1] + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 1 + 2] * shared->sdis_sec[2] * (internal.inf_13[shared->dim_inf_13_1 * (j - 1) + i - 1] + internal.inf_23[shared->dim_inf_23_1 * (j - 1) + i - 1] + internal.inf_43[shared->dim_inf_43_1 * (j - 1) + i - 1]) + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 2 + 2] * (shared->sdis_tert[2] * (internal.inf_123[shared->dim_inf_123_1 * (j - 1) + i - 1] + internal.inf_143[shared->dim_inf_143_1 * (j - 1) + i - 1] + internal.inf_243[shared->dim_inf_243_1 * (j - 1) + i - 1]) + shared->sdis_quart[2] * internal.inf_1243[shared->dim_inf_1243_1 * (j - 1) + i - 1]);
+        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 0 + 2] * shared->sdis_pri[2] * internal.inf_3[shared->dim_inf_3_1 * (j - 1) + i - 1] + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 1 + 2] * shared->sdis_sec[2] * (internal.inf_13[shared->dim_inf_13_1 * (j - 1) + i - 1] + internal.inf_23[shared->dim_inf_23_1 * (j - 1) + i - 1] + internal.inf_43[shared->dim_inf_43_1 * (j - 1) + i - 1]) + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 2 + 2] * (shared->sdis_tert[2] * (internal.inf_123[shared->dim_inf_123_1 * (j - 1) + i - 1] + internal.inf_143[shared->dim_inf_143_1 * (j - 1) + i - 1] + internal.inf_243[shared->dim_inf_243_1 * (j - 1) + i - 1]) + shared->sdis_quart[2] * internal.inf_1243[shared->dim_inf_1243_1 * (j - 1) + i - 1]);
       }
     }
     for (int i = 1; i <= shared->N_age; ++i) {
@@ -6164,7 +6197,7 @@ public:
     for (int i = 1; i <= shared->N_age; ++i) {
       for (int j = 2; j <= 3; ++j) {
         int k = 4;
-        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 0 + 3] * shared->sdis_pri[3] * internal.inf_4[shared->dim_inf_4_1 * (j - 1) + i - 1] + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 1 + 3] * shared->sdis_sec[3] * (internal.inf_14[shared->dim_inf_14_1 * (j - 1) + i - 1] + internal.inf_24[shared->dim_inf_24_1 * (j - 1) + i - 1] + internal.inf_34[shared->dim_inf_34_1 * (j - 1) + i - 1]) + internal.RR_dis[shared->dim_RR_dis_12 * (i - 1) + shared->dim_RR_dis_1 * 2 + 3] * (shared->sdis_tert[3] * (internal.inf_124[shared->dim_inf_124_1 * (j - 1) + i - 1] + internal.inf_134[shared->dim_inf_134_1 * (j - 1) + i - 1] + internal.inf_234[shared->dim_inf_234_1 * (j - 1) + i - 1]) + shared->sdis_quart[3] * internal.inf_1234[shared->dim_inf_1234_1 * (j - 1) + i - 1]);
+        internal.sdisease_sero[i - 1 + shared->dim_sdisease_sero_1 * (j - 1) + shared->dim_sdisease_sero_12 * (k - 1)] = internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 0 + 3] * shared->sdis_pri[3] * internal.inf_4[shared->dim_inf_4_1 * (j - 1) + i - 1] + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 1 + 3] * shared->sdis_sec[3] * (internal.inf_14[shared->dim_inf_14_1 * (j - 1) + i - 1] + internal.inf_24[shared->dim_inf_24_1 * (j - 1) + i - 1] + internal.inf_34[shared->dim_inf_34_1 * (j - 1) + i - 1]) + internal.RR_sdis[shared->dim_RR_sdis_12 * (i - 1) + shared->dim_RR_sdis_1 * 2 + 3] * (shared->sdis_tert[3] * (internal.inf_124[shared->dim_inf_124_1 * (j - 1) + i - 1] + internal.inf_134[shared->dim_inf_134_1 * (j - 1) + i - 1] + internal.inf_234[shared->dim_inf_234_1 * (j - 1) + i - 1]) + shared->sdis_quart[3] * internal.inf_1234[shared->dim_inf_1234_1 * (j - 1) + i - 1]);
       }
     }
     for (int i = 1; i <= shared->N_age; ++i) {

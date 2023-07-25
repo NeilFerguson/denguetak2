@@ -319,19 +319,28 @@
   ## If DoVEInf=1, assume that VE(inf) = sqrt of total protection, with all enhancement in VE(dis|inf)
   ## This is approximately consistent with findings of https://pubmed.ncbi.nlm.nih.gov/27418050/
   
-  RR_inf_vc[1:4,1:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf)) 1/sqrt(1+(nc[i,j,k]/(nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
-  RR_inf_cu[1:4,1:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf) && (ageb[k]>=youngest_cu_age) && (ageb[k]<=oldest_cu_age)) 1/sqrt(1+(nc_cu[i,j]/nc50_dis[i,j]*nc50_age[k])^ws[i]) else 1
+  # RR_inf_vc[1:4,1:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf)) 1/sqrt(1+(nc[i,j,k]/(nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
+  # RR_inf_cu[1:4,1:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf) && (ageb[k]>=youngest_cu_age) && (ageb[k]<=oldest_cu_age)) 1/sqrt(1+(nc_cu[i,j]/nc50_dis[i,j]*nc50_age[k])^ws[i]) else 1
   
-  RR_dis_vc[1:4,1:3,1:N_age] <- if(ZeroVE==1) 1 else if(DoVEInf) L_dis[i,j]*RR_inf_vc[i,j,k] else L_dis[i,j]/(1+(nc[i,j,k]/(nc50_dis[i,j]*nc50_age[k]))^ws[i])
-  RR_sdis_vc[1:4,1:3,1:N_age] <- if(ZeroVE==1) 1 else L_sdis[i,j]/(1+(nc[i,j,k]/(nc50_sdis[i,j]*nc50_age[k]))^ws[i])
+  ## VE(inf) Ab driven model loosely matched to Takeda results
   
-  RR_dis_cu[1:4,1:3,1:N_age] <- if((ZeroVE==1) || (ageb[k]<youngest_cu_age) || (ageb[k]>oldest_cu_age)) 1 else if(DoVEInf) L_dis[i,j]*RR_inf_cu[i,j,k] else L_dis[i,j]/(1+(nc_cu[i,j]/nc50_dis[i,j]*nc50_age[k])^ws[i])
-  RR_sdis_cu[1:4,1:3,1:N_age] <- if((ZeroVE==0) && (ageb[k]>=youngest_cu_age) && (ageb[k]<=oldest_cu_age)) L_sdis[i,j]/(1+(nc_cu[i,j]/nc50_sdis[i,j]*nc50_age[k])^ws[i]) else 1
+  RR_inf_vc[1:4,1,1:N_age] <- if((ZeroVE==0) && (DoVEInf)) 1/(1+(nc[i,j,k]/(12*nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
+  RR_inf_cu[1:4,1,1:N_age] <- if((ZeroVE==0) && (DoVEInf) && (ageb[k]>=youngest_cu_age) && (ageb[k]<=oldest_cu_age)) 1/(1+(nc_cu[i,j]/(12*nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
+ 
+  RR_inf_vc[1:4,2:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf)) 1/(1+(nc[i,j,k]/(3*nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
+  RR_inf_cu[1:4,2:3,1:N_age] <- if((ZeroVE==0) && (DoVEInf) && (ageb[k]>=youngest_cu_age) && (ageb[k]<=oldest_cu_age)) 1/(1+(nc_cu[i,j]/(3*nc50_dis[i,j]*nc50_age[k]))^ws[i]) else 1
+  
+   
+  RR_dis_vc[1:4,1:3,1:N_age] <- if(ZeroVE==1) 1 else (L_dis[i,j]/(1+(nc[i,j,k]/(nc50_dis[i,j]*nc50_age[k]))^ws[i]))/RR_inf_vc[i,j,k] 
+  RR_sdis_vc[1:4,1:3,1:N_age] <- if(ZeroVE==1) 1 else L_sdis[i,j]/(1+(nc[i,j,k]/(nc50_sdis[i,j]*nc50_age[k]))^ws[i])/RR_inf_vc[i,j,k]
+  
+  RR_dis_cu[1:4,1:3,1:N_age] <- if((ZeroVE==1) || (ageb[k]<youngest_cu_age) || (ageb[k]>oldest_cu_age)) 1 else L_dis[i,j]/(1+(nc_cu[i,j]/(nc50_dis[i,j]*nc50_age[k]))^ws[i])/RR_inf_cu[i,j,k]
+  RR_sdis_cu[1:4,1:3,1:N_age] <- if((ZeroVE==1) || (ageb[k]<youngest_cu_age) || (ageb[k]>oldest_cu_age)) 1 else  L_sdis[i,j]/(1+(nc_cu[i,j]/(nc50_sdis[i,j]*nc50_age[k]))^ws[i])/RR_inf_cu[i,j,k]
   
 
   RR_inf[1:4,1:3,1:N_age] <- RR_inf_vc[i,j,k]*RR_inf_cu[i,j,k]
   RR_dis[1:4,1:3,1:N_age] <- RR_dis_vc[i,j,k]*RR_dis_cu[i,j,k] 
-  RR_sdis[1:4,1:3,1:N_age] <- if(DoVEInf) RR_sdis_vc[i,j,k]*RR_sdis_cu[i,j,k]/RR_inf[i,j,k] else RR_sdis_vc[i,j,k]*RR_sdis_cu[i,j,k]
+  RR_sdis[1:4,1:3,1:N_age] <- RR_sdis_vc[i,j,k]*RR_sdis_cu[i,j,k]
   
   initial(out_RR[1:4,1:3,1:N_age]) <- 0
   update(out_RR[1:4,1:3,1:N_age]) <- RR_dis[i,j,k]
@@ -1025,13 +1034,13 @@
   dim(out_disc_sdis_unvacc_redist_u5) <- NYO
   
   sdisease_sero[1:N_age,1,1] <- sdis_pri[1]*inf_1[i,j]+sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j]
-  sdisease_sero[1:N_age,2:3,1] <- RR_dis[1,1,i]*sdis_pri[1]*inf_1[i,j]+RR_dis[1,2,i]*sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+RR_dis[1,3,i]*(sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j])
+  sdisease_sero[1:N_age,2:3,1] <- RR_sdis[1,1,i]*sdis_pri[1]*inf_1[i,j]+RR_sdis[1,2,i]*sdis_sec[1]*(inf_21[i,j]+inf_31[i,j]+inf_41[i,j])+RR_sdis[1,3,i]*(sdis_tert[1]*(inf_231[i,j]+inf_241[i,j]+inf_341[i,j])+sdis_quart[1]*inf_2341[i,j])
   sdisease_sero[1:N_age,1,2] <- sdis_pri[2]*inf_2[i,j]+sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j]
-  sdisease_sero[1:N_age,2:3,2] <- RR_dis[2,1,i]*sdis_pri[2]*inf_2[i,j]+RR_dis[2,2,i]*sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+RR_dis[2,3,i]*(sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j])
+  sdisease_sero[1:N_age,2:3,2] <- RR_sdis[2,1,i]*sdis_pri[2]*inf_2[i,j]+RR_sdis[2,2,i]*sdis_sec[2]*(inf_12[i,j]+inf_32[i,j]+inf_42[i,j])+RR_sdis[2,3,i]*(sdis_tert[2]*(inf_132[i,j]+inf_142[i,j]+inf_342[i,j])+sdis_quart[2]*inf_1342[i,j])
   sdisease_sero[1:N_age,1,3] <- sdis_pri[3]*inf_3[i,j]+sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j]
-  sdisease_sero[1:N_age,2:3,3] <- RR_dis[3,1,i]*sdis_pri[3]*inf_3[i,j]+RR_dis[3,2,i]*sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+RR_dis[3,3,i]*(sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j])
+  sdisease_sero[1:N_age,2:3,3] <- RR_sdis[3,1,i]*sdis_pri[3]*inf_3[i,j]+RR_sdis[3,2,i]*sdis_sec[3]*(inf_13[i,j]+inf_23[i,j]+inf_43[i,j])+RR_sdis[3,3,i]*(sdis_tert[3]*(inf_123[i,j]+inf_143[i,j]+inf_243[i,j])+sdis_quart[3]*inf_1243[i,j])
   sdisease_sero[1:N_age,1,4] <- sdis_pri[4]*inf_4[i,j]+sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j]
-  sdisease_sero[1:N_age,2:3,4] <- RR_dis[4,1,i]*sdis_pri[4]*inf_4[i,j]+RR_dis[4,2,i]*sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+RR_dis[4,3,i]*(sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j])
+  sdisease_sero[1:N_age,2:3,4] <- RR_sdis[4,1,i]*sdis_pri[4]*inf_4[i,j]+RR_sdis[4,2,i]*sdis_sec[4]*(inf_14[i,j]+inf_24[i,j]+inf_34[i,j])+RR_sdis[4,3,i]*(sdis_tert[4]*(inf_124[i,j]+inf_134[i,j]+inf_234[i,j])+sdis_quart[4]*inf_1234[i,j])
   
   sdisease_sero_vacc_pri[1:N_age,1] <- sdis_pri[1]*RR_dis[1,1,i]*(inf_1[i,2]+inf_1[i,3])
   sdisease_sero_vacc_pri[1:N_age,2] <- sdis_pri[2]*RR_dis[2,1,i]*(inf_2[i,2]+inf_2[i,3])
